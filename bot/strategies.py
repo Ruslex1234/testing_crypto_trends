@@ -232,6 +232,75 @@ def crash_buyer(md, memo):
     return {"BTC": tier / 3} if tier else {}
 
 
+def trw_tpi(md, memo):
+    """Trend Probability Indicator in the style taught by The Real World investing campus:
+    8 independent trend signals on BTC daily each vote +1/-1; hold BTC while the average > 0."""
+    d = done(md["BTC"]["1d"])
+    c = closes(d)
+    e12, e26 = ema_series(c, 12), ema_series(c, 26)
+    macd = [a - b for a, b in zip(e12, e26)]
+    sig = ema_series(macd, 9)
+    hi20, lo20 = max(r["h"] for r in d[-20:]), min(r["l"] for r in d[-20:])
+    votes = {
+        "price>EMA21": c[-1] > ema_series(c, 21)[-1],
+        "price>SMA50": c[-1] > sma(c, 50),
+        "EMA9>EMA21": ema_series(c, 9)[-1] > ema_series(c, 21)[-1],
+        "MACD>signal": macd[-1] > sig[-1],
+        "RSI>50": rsi(c[-120:], 14) > 50,
+        "14d ROC>0": c[-1] > c[-15],
+        "upper half of 20d range": c[-1] > (hi20 + lo20) / 2,
+        "SMA20 rising": sma(c, 20) > sma(c[:-5], 20),
+    }
+    tpi = sum(1 if v else -1 for v in votes.values()) / len(votes)
+    memo["tpi"] = tpi
+    bulls = [k for k, v in votes.items() if v]
+    memo["why"] = (f"TPI {tpi:+.2f} (long while > 0). Bullish: "
+                   f"{', '.join(bulls) if bulls else 'none'}")
+    return {"BTC": 1.0} if tpi > 0 else {}
+
+
+def trw_box(md, memo):
+    """Box breakout in the style of The Real World trading campus: on daily charts, a box is the
+    last 20 days of consolidation (range under 30%). Enter on a daily close above the box top,
+    only in a trend (price > 50 SMA and EMA9 > EMA21). Stop at box middle; size the position so a
+    stop-out costs 3% of the account. Exit at the stop or a daily close below EMA21.
+    Runs on BTC, ETH, SOL independently."""
+    w, why = {}, []
+    risk = 0.03
+    for a in ("BTC", "ETH", "SOL"):
+        d = done(md[a]["1d"])
+        c = closes(d)
+        price = md[a]["price"]
+        e9, e21 = ema_series(c, 9)[-1], ema_series(c, 21)[-1]
+        pos = memo.get(a)
+        if pos:
+            if price < pos["stop"] or c[-1] < e21:
+                memo[a] = pos = None
+            else:
+                w[a] = pos["w"]
+                why.append(f"{a} in {pos['w'] * 100:.0f}%, stop ${pos['stop']:,.2f}")
+                continue
+        box = d[-21:-1]
+        top, bot = max(r["h"] for r in box), min(r["l"] for r in box)
+        tight = top / bot - 1 < 0.30
+        trend = c[-1] > sma(c, 50) and e9 > e21
+        if c[-1] > top and tight and trend:
+            stop = (top + bot) / 2
+            size = min(1 / 3, risk / max(1 - stop / price, 0.01))  # 1/3 cap: three coins share
+            memo[a] = {"stop": stop, "w": size, "entry": price}
+            w[a] = size
+            why.append(f"{a} broke out, {size * 100:.0f}% in, stop ${stop:,.2f}")
+        else:
+            need = [f"close > box top ${top:,.2f}"] if c[-1] <= top else []
+            if not trend:
+                need.append("uptrend (>50SMA, EMA9>21)")
+            if not tight:
+                need.append("tighter box")
+            why.append(f"{a} needs {' + '.join(need)}")
+    memo["why"] = "; ".join(why)
+    return w
+
+
 def vol_target(md, memo):  # noqa: C901
     """Volatility-targeted trend on BTC + ETH. Each coin gets up to half the account,
     only if its 30-day return is positive, scaled by 50% / realised 20-day annual vol."""
@@ -253,8 +322,10 @@ STRATEGIES = [
     # id, name, function, short thesis, assets used
     ("hodl_btc", "Buy & Hold BTC (benchmark)", hodl_btc,
      "The bar every active strategy must beat after fees.", ["BTC"]),
-    ("trend_sma50", "Trend: BTC above 50 day SMA", trend_sma50,
-     "Time series momentum. Rides bull runs, sits in cash during crashes.", ["BTC"]),
+    ("trw_tpi", "TRW style TPI trend (BTC)", trw_tpi,
+     "8 trend indicators vote; long BTC while the average is positive.", ["BTC"]),
+    ("trw_box", "TRW style box breakout (BTC/ETH/SOL)", trw_box,
+     "Buy consolidation breakouts in uptrends, 3% account risk per trade.", ["BTC", "ETH", "SOL"]),
     ("ema_cross_6h", "EMA 9/21 crossover (ETH 6h)", ema_cross_6h,
      "Faster momentum signal, similar to MACD. More trades, reacts quicker.", ["ETH"]),
     ("dca_btc", "Daily DCA into BTC (30 days)", dca_btc,

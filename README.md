@@ -1,6 +1,6 @@
 # Strategy Arena: crypto paper trading
 
-Nine automated crypto strategies, each with **$100 of paper money**, trading every hour against
+Ten automated crypto strategies, each with **$100 of paper money**, trading every hour against
 live market prices. A GitHub Action runs the bot, commits the balances, and a GitHub Pages
 dashboard shows who is winning. After ~30 days the dashboard prints a verdict.
 
@@ -15,14 +15,15 @@ mechanical (no discretion), and being runnable with $100 (no leverage, no shorti
 | # | Strategy | Asset(s) | Rules | Evidence / rationale |
 |---|----------|----------|-------|----------------------|
 | 1 | **Buy & Hold BTC** | BTC | Buy once, never sell | The benchmark. Most active strategies fail to beat it after costs. |
-| 2 | **Trend: 50 day SMA** | BTC | Hold BTC while daily close > 50 day average, else cash | Time series momentum (Moskowitz, Ooi, Pedersen 2012). Moving average rules on bitcoin show predictive power (Detzel et al. 2021). Main payoff: dodging large crashes. |
-| 3 | **EMA 9/21 crossover** | ETH, 6h candles | Long when fast EMA > slow EMA | Faster momentum signal (MACD family). Catches moves earlier, pays more in whipsaw fees. |
-| 4 | **Daily DCA** | BTC | Spread the $100 into BTC over 30 days (~$3/day) | The realistic beginner approach. Head to head with #1 it answers: lump sum or drip it in? (Vanguard 2012: lump sum wins ~2/3 of the time, DCA lowers regret.) |
-| 5 | **Crash buyer** | BTC | Buy 1/3 at 15%, 2/3 at 25%, all at 35% below the 60 day high; sell at 95% of that high | Contrarian counterweight to the trend strategies, so the arena has something that acts in falling markets. |
-| 6 | **RSI dip buyer** | BTC, 1h | Buy RSI(14) < 30; exit RSI > 55 or 6% stop | Short horizon mean reversion (Connors style). No trend filter. |
-| 7 | **Bollinger reversion** | SOL, 1h | Buy close below lower band (20, 2σ), sell at middle band, 8% stop | Mean reversion on a high volatility coin. Higher risk entry. |
-| 8 | **Dual momentum rotation** | top 3 of BTC, ETH, SOL, XRP, DOGE, ADA, AVAX, LINK | Weekly: hold top 3 by 14 day return, only if positive, else cash | Cross sectional crypto momentum (Liu & Tsyvinski 2021; Liu, Tsyvinski, Wu 2022) plus an absolute momentum filter (Antonacci). |
-| 9 | **Grid trader** | ETH | 10 levels across ±10%: buy each level down, sell each level up; re-centres if price escapes | Classic exchange bot. Wins in sideways chop, lags in strong trends. |
+| 2 | **TRW style TPI trend** | BTC, daily | 8 trend signals (EMA21, SMA50, EMA9/21, MACD, RSI, 14d ROC, 20d range, SMA20 slope) vote ±1; long while average > 0 | Reconstruction of the "Trend Probability Indicator" approach taught in The Real World investing campus. Aggregating signals cuts single-indicator whipsaw. |
+| 3 | **TRW style box breakout** | BTC, ETH, SOL, daily | Close above a 20 day consolidation box (<30% tall) while price > 50 SMA and EMA9 > EMA21; stop at box middle, sized to risk 3% of the account; exit on stop or close < EMA21 | Reconstruction of the "box system" from The Real World trading campus, with its risk-per-trade rule. |
+| 4 | **EMA 9/21 crossover** | ETH, 6h candles | Long when fast EMA > slow EMA | Faster momentum signal (MACD family). Catches moves earlier, pays more in whipsaw fees. |
+| 5 | **Daily DCA** | BTC | Spread the $100 into BTC over 30 days (~$3/day) | The realistic beginner approach. Head to head with #1 it answers: lump sum or drip it in? (Vanguard 2012: lump sum wins ~2/3 of the time, DCA lowers regret.) |
+| 6 | **Crash buyer** | BTC | Buy 1/3 at 15%, 2/3 at 25%, all at 35% below the 60 day high; sell at 95% of that high | Contrarian counterweight to the trend strategies, so the arena has something that acts in falling markets. |
+| 7 | **RSI dip buyer** | BTC, 1h | Buy RSI(14) < 30; exit RSI > 55 or 6% stop | Short horizon mean reversion (Connors style). No trend filter. |
+| 8 | **Bollinger reversion** | SOL, 1h | Buy close below lower band (20, 2σ), sell at middle band, 8% stop | Mean reversion on a high volatility coin. Higher risk entry. |
+| 9 | **Dual momentum rotation** | top 3 of BTC, ETH, SOL, XRP, DOGE, ADA, AVAX, LINK | Weekly: hold top 3 by 14 day return, only if positive, else cash | Cross sectional crypto momentum (Liu & Tsyvinski 2021; Liu, Tsyvinski, Wu 2022) plus an absolute momentum filter (Antonacci). |
+| 10 | **Grid trader** | ETH | 10 levels across ±10%: buy each level down, sell each level up; re-centres if price escapes | Classic exchange bot. Wins in sideways chop, lags in strong trends. |
 
 ## How realistic is it
 
@@ -34,7 +35,10 @@ mechanical (no discretion), and being runnable with $100 (no leverage, no shorti
 
 Changed on day 1 (2026-11-19): Turtle breakout and volatility targeted trend were retired
 (they duplicated the 50 day trend signal and all sat in cash together); DCA and crash buyer
-replaced them, and the RSI dip buyer lost its uptrend filter.
+replaced them, and the RSI dip buyer lost its uptrend filter. Later the same day the plain 50 day
+trend account was replaced by two strategies modelled on The Real World (Andrew Tate's course)
+crypto campuses. Those are reconstructions from public student notes and community discussion,
+not the paid course material itself.
 * **Not modelled:** taxes, withdrawal fees, exchange downtime, partial fills.
 
 ## Setup (one time, about 2 minutes)
@@ -50,7 +54,7 @@ Dashboard: `https://<your-username>.github.io/testing_crypto_trends/`
 ## Files
 
 * `bot/market.py` fetches candles (Coinbase, Kraken fallback)
-* `bot/strategies.py` the nine strategies, each returns target weights
+* `bot/strategies.py` the strategies, each returns target weights
 * `bot/engine.py` paper broker: fees, slippage, rebalancing, state
 * `docs/index.html` dashboard; `docs/data/state.json` all balances and trades
 * `tests/test_sim.py` 45 day synthetic simulation (`python tests/test_sim.py`)
