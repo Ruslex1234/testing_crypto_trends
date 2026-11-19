@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9;--card:#fff;--ink:#14171f;--muted:#5d6475;--line:#e3e6ec;
+  --up:#0f8a5f;--down:#c4362f;--accent:#3a5bd9;--chip:#eef1f6;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1016;--card:#151a23;--ink:#e8ebf1;--muted:#949cad;--line:#252c39;
+  --up:#3ccf91;--down:#ff6b61;--accent:#7f9cff;--chip:#1e2532;}}
+:root[data-theme="dark"]{--bg:#0d1016;--card:#151a23;--ink:#e8ebf1;--muted:#949cad;--line:#252c39;
+  --up:#3ccf91;--down:#ff6b61;--accent:#7f9cff;--chip:#1e2532;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.kpi .v{font-size:22px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.verdict{border-left:4px solid var(--accent)}
+.verdict h2{margin:0 0 6px;font-size:17px}
+h2{font-size:17px;margin:0 0 12px}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+th:nth-child(2),td:nth-child(2){text-align:left;white-space:normal;min-width:200px}
+td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;vertical-align:middle}
+.up{color:var(--up)}.down{color:var(--down)}
+.chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:12px;font-family:"JetBrains Mono",monospace}
+.thesis{color:var(--muted);font-size:13px}
+.chartbox{position:relative;height:380px}
+details{border-top:1px solid var(--line);padding:10px 0}
+details:first-of-type{border-top:0}
+summary{cursor:pointer;font-weight:500}
+.trades{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--muted);margin-top:8px;max-height:260px;overflow:auto}
+.trades div{padding:2px 0}
+.foot{color:var(--muted);font-size:13px}
+.err{color:var(--down);font-size:12px}
+@media (max-width:600px){.chartbox{height:280px}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Strategy Arena</h1>
+  <p class="sub">Nine crypto strategies, $100 of paper money each, trading hourly against live prices with realistic fees and slippage.</p>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="card verdict" id="verdict"></div>
+
+  <div class="card">
+    <h2>Leaderboard</h2>
+    <div class="tbl"><table id="board"><thead><tr>
+      <th>#</th><th>Strategy</th><th>Balance</th><th>Return</th><th>vs BTC</th><th>Max DD</th><th>Score</th><th>Trades</th><th>Fees</th><th>Holding</th>
+    </tr></thead><tbody></tbody></table></div>
+    <p class="foot">Score = return ÷ max drawdown (higher is better: profit per unit of pain). Max DD = worst peak to trough drop.</p>
+  </div>
+
+  <div class="card">
+    <h2>Balance over time</h2>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Trade log</h2>
+    <div id="logs"></div>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+<script>
+const COLORS=["#8a909c","#3a5bd9","#e0861a","#13a37a","#c4362f","#8f4fd1","#d64f9c","#2a9fc4","#7a8b1f"];
+const $=s=>document.querySelector(s);
+const pct=x=>(x>=0?"+":"")+(x*100).toFixed(2)+"%";
+const usd=x=>"$"+x.toFixed(2);
+const cls=x=>x>=0?"up":"down";
+const fmtT=t=>new Date(t*1000).toISOString().slice(0,16).replace("T"," ")+" UTC";
+
+function maxDD(h){let pk=-1,dd=0;for(const[,v]of h){pk=Math.max(pk,v);dd=Math.max(dd,(pk-v)/pk)}return dd}
+
+fetch("data/state.json?ts="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(render).catch(e=>{
+  $("#verdict").innerHTML="<h2>Waiting for the first trading run</h2><p>The bot hasn't produced data yet. It runs every hour via GitHub Actions.</p>";
+});
+
+function render(s){
+  const start=s.config.start_cash||100;
+  const accts=Object.values(s.accounts).map((a,i)=>{
+    const ret=a.equity/start-1, dd=maxDD(a.history);
+    return {...a,color:COLORS[i%COLORS.length],ret,dd,score:ret/Math.max(dd,0.01)};
+  });
+  const bench=accts.find(a=>a.id==="hodl_btc");
+  const days=(s.last_run-s.started)/86400;
+  const ranked=[...accts].sort((a,b)=>b.equity-a.equity);
+
+  const total=accts.reduce((x,a)=>x+a.equity,0);
+  $("#kpis").innerHTML=[
+    ["Days running",days.toFixed(1)],
+    ["Combined balance",usd(total)+" / "+usd(start*accts.length)],
+    ["Leader",ranked[0].name.split(" (")[0]],
+    ["BTC price","$"+Math.round(s.prices.BTC).toLocaleString()],
+  ].map(([l,v])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+
+  // Verdict
+  const active=accts.filter(a=>a.id!=="hodl_btc");
+  const beat=active.filter(a=>a.ret>bench.ret);
+  // winner = best risk adjusted score among strategies that actually beat holding BTC
+  const pool=beat.length?beat:active;
+  const best=[...pool].sort((a,b)=>b.score-a.score)[0];
+  let v;
+  if(days<28){
+    v=`<h2>Verdict: too early (${days.toFixed(1)} of 30 days)</h2>
+    <p>Current front runner${beat.length?"":" (not beating BTC yet)"}: <b>${best.name}</b> (${pct(best.ret)}, max drawdown ${(best.dd*100).toFixed(1)}%). ${beat.length} of ${active.length} strategies are beating plain BTC. Check back after day 30.</p>`;
+  }else if(beat.length && best.ret>0){
+    v=`<h2>Verdict: ${best.name}</h2>
+    <p>Beat BTC and had the best return per unit of drawdown over ${days.toFixed(0)} days: ${pct(best.ret)} vs BTC ${pct(bench.ret)}, max drawdown ${(best.dd*100).toFixed(1)}%. One month is a small sample, so treat this as a signal to keep watching with small money, not proof.</p>`;
+  }else{
+    v=`<h2>Verdict: no strategy beat buy and hold</h2>
+    <p>After ${days.toFixed(0)} days nothing active made money while beating BTC (${pct(bench.ret)}). That is the most common real world result. Simple buy and hold or DCA is the honest default.</p>`;
+  }
+  $("#verdict").innerHTML=v;
+
+  // Table
+  $("#board tbody").innerHTML=ranked.map((a,i)=>{
+    const hold=Object.keys(a.holdings||{}).length?Object.entries(a.holdings).map(([k,q])=>`<span class="chip">${k}</span>`).join(" "):'<span class="chip">cash</span>';
+    return `<tr><td>${i+1}</td>
+    <td><span class="dot" style="background:${a.color}"></span><b>${a.name}</b><div class="thesis">${a.thesis}</div>${a.error?`<div class="err">${a.error}</div>`:""}</td>
+    <td>${usd(a.equity)}</td><td class="${cls(a.ret)}">${pct(a.ret)}</td>
+    <td class="${cls(a.ret-bench.ret)}">${a.id==="hodl_btc"?"—":pct(a.ret-bench.ret)}</td>
+    <td>${(a.dd*100).toFixed(1)}%</td><td>${a.score.toFixed(2)}</td>
+    <td>${a.trades.length}</td><td>${usd(a.fees_paid)}</td><td>${hold}</td></tr>`}).join("");
+
+  // Chart
+  const css=getComputedStyle(document.documentElement);
+  const grid=css.getPropertyValue("--line").trim(), ink=css.getPropertyValue("--muted").trim();
+  if(window.Chart) new Chart($("#chart"),{type:"line",
+    data:{datasets:accts.map(a=>({label:a.name,data:a.history.map(([t,v])=>({x:t*1000,y:v})),
+      borderColor:a.color,backgroundColor:a.color,borderWidth:a.id==="hodl_btc"?2.5:1.6,
+      borderDash:a.id==="hodl_btc"?[6,4]:[],pointRadius:0,tension:.15}))},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"nearest",intersect:false},
+      parsing:false,
+      scales:{x:{type:"linear",min:s.started*1000,max:s.last_run*1000,grid:{color:grid},ticks:{color:ink,maxTicksLimit:7,callback:v=>new Date(v).toISOString().slice(5,10)}},
+              y:{grid:{color:grid},ticks:{color:ink,callback:v=>"$"+v}}},
+      plugins:{legend:{display:innerWidth>600,position:"bottom",labels:{color:ink,boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x/1000),label:c=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}}}});
+
+  // Logs
+  $("#logs").innerHTML=ranked.map(a=>`<details><summary>${a.name} · ${a.trades.length} trade${a.trades.length===1?"":"s"}</summary><div class="trades">${
+    a.trades.slice(-150).reverse().map(t=>`<div>${fmtT(t.t)}  <span class="${t.side==="buy"?"up":"down"}">${t.side.toUpperCase().padEnd(4)}</span> ${t.asset.padEnd(5)} ${usd(t.usd).padStart(9)} @ ${t.price}  fee ${usd(t.fee)}</div>`).join("")||"No trades yet."
+  }</div></details>`).join("");
+
+  $("#foot").textContent=`Last run ${fmtT(s.last_run)} · ${s.runs} runs · data: ${s.data_sources.join(", ")} · fee ${(s.config.fee*100).toFixed(2)}% per fill, slippage ${(s.config.slippage_major*100).toFixed(2)}% majors / ${(s.config.slippage_alt*100).toFixed(2)}% alts. Paper money only, not financial advice.`;
+}
+</script>
+</body>
+</html>
