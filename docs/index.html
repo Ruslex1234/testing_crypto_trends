@@ -127,6 +127,8 @@ function render(s){
     v=`<h2>Verdict: no strategy beat buy and hold</h2>
     <p>After ${days.toFixed(0)} days nothing active made money while beating BTC (${pct(bench.ret)}). That is the most common real world result. Simple buy and hold or DCA is the honest default.</p>`;
   }
+  const staleH=(Date.now()/1000-s.last_run)/3600;
+  if(staleH>3) v=`<p class="err" style="font-size:14px;margin:0 0 10px"><b>Bot has not run for ${staleH.toFixed(0)} hours.</b> Check the Actions tab: scheduled runs may be disabled or failing.</p>`+v;
   $("#verdict").innerHTML=v;
 
   // Table
