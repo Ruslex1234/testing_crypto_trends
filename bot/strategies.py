@@ -144,7 +144,12 @@ def momentum_rotation(md, memo, now=None):
     # hold picks for 7 days; while in cash, re-check daily so it can re-enter promptly
     hold = 7 * 86400 if memo.get("weights") else 86400
     if now is not None and now - last < hold and "weights" in memo:
-        return memo["weights"]
+        w, sc = memo["weights"], memo.get("scores", {})
+        best = max(sc, key=sc.get) if sc else "?"
+        memo["why"] = (f"Holding {', '.join(w)} until next weekly rebalance" if w else
+                       f"All coins down over 14 days at last check (best: {best} "
+                       f"{pct(sc.get(best, 0))}); next check in {(last + hold - now) / 3600:.0f}h")
+        return w
     scores = {}
     for a, d in md.items():
         c = closes(done(d["1d"]))
