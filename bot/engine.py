@@ -72,6 +72,7 @@ def _fill(acct, asset, side, usd, price, now, reason):
 
 def rebalance(acct, target, prices, now, reason="signal"):
     eq = equity(acct, prices)
+    band = acct["memo"].get("band", REBAL_BAND)
     assets = set(target) | set(acct["holdings"])
     orders = []
     for a in assets:
@@ -80,7 +81,7 @@ def rebalance(acct, target, prices, now, reason="signal"):
         diff = tgt - cur
         full_exit = target.get(a, 0.0) == 0 and cur >= MIN_ORDER
         full_entry = cur < MIN_ORDER and tgt >= MIN_ORDER
-        if full_exit or full_entry or abs(diff) > REBAL_BAND * eq:
+        if full_exit or full_entry or abs(diff) > band * eq:
             orders.append((a, diff, full_exit))
     # sells first to free cash, then buys
     for a, diff, full_exit in sorted(orders, key=lambda o: o[1]):
@@ -121,6 +122,10 @@ def step(state, md, now, errors=None, sources=None):
     state["config"] = {"start_cash": START_CASH, "fee": FEE, "slippage_major": SLIP["BTC"],
                        "slippage_alt": SLIP_DEFAULT, "rebalance_band": REBAL_BAND,
                        "min_order": MIN_ORDER}
+    live = {sid for sid, *_ in STRATEGIES}
+    state["retired"] = state.get("retired", {})
+    for sid in [k for k in state["accounts"] if k not in live]:
+        state["retired"][sid] = state["accounts"].pop(sid)
     for sid, name, fn, thesis, needs in STRATEGIES:
         acct = state["accounts"].get(sid) or new_account(sid, name, thesis)
         acct["name"], acct["thesis"] = name, thesis

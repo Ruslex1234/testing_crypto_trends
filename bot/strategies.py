@@ -42,6 +42,10 @@ def stdev(xs):
     return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs))
 
 
+def pct(x):
+    return f"{x * 100:+.1f}%"
+
+
 def done(rows):
     return rows[:-1]
 
@@ -49,26 +53,33 @@ def done(rows):
 # ---------- strategies ----------
 def hodl_btc(md, memo):
     """Benchmark: buy BTC once, never sell."""
+    memo["why"] = "Always 100% BTC"
     return {"BTC": 1.0}
 
 
 def trend_sma50(md, memo):
     """Time-series momentum: hold BTC while last daily close > 50-day SMA, else cash."""
     c = closes(done(md["BTC"]["1d"]))
-    return {"BTC": 1.0} if c[-1] > sma(c, 50) else {}
+    m = sma(c, 50)
+    memo["why"] = (f"In BTC while daily close ${c[-1]:,.0f} stays above 50d avg ${m:,.0f}"
+                   if c[-1] > m else
+                   f"Waiting for a daily close above the 50d avg ${m:,.0f} (BTC needs {pct(m / c[-1] - 1)})")
+    return {"BTC": 1.0} if c[-1] > m else {}
 
 
 def ema_cross_6h(md, memo):
     """ETH on 6h candles: long when EMA(9) > EMA(21) (MACD-style momentum), else cash."""
     c = closes(done(md["ETH"]["6h"]))
     fast, slow = ema_series(c, 9)[-1], ema_series(c, 21)[-1]
+    memo["why"] = (f"Long ETH: fast EMA {pct(fast / slow - 1)} above slow" if fast > slow else
+                   f"Waiting for 6h EMA9 to cross above EMA21 (gap {pct(fast / slow - 1)})")
     return {"ETH": 1.0} if fast > slow else {}
 
 
 def donchian_turtle(md, memo):
     """Turtle-style breakout on BTC and ETH daily: enter on 20-day high, exit on 10-day low.
     Half the account is allocated to each coin."""
-    w = {}
+    w, why = {}, []
     for a in ("BTC", "ETH"):
         d = done(md[a]["1d"])
         last = d[-1]["c"]
@@ -80,24 +91,29 @@ def donchian_turtle(md, memo):
         elif inpos and last < lo10:
             inpos = False
         memo[a] = inpos
+        why.append(f"{a} in, exits below ${lo10:,.2f}" if inpos else
+                   f"{a} needs close > 20d high ${hi20:,.2f} ({pct(hi20 / last - 1)})")
         if inpos:
             w[a] = 0.5
+    memo["why"] = "; ".join(why)
     return w
 
 
 def rsi_reversion(md, memo):
     """BTC hourly mean reversion: buy when RSI(14) < 30, exit when RSI > 55
-    or a 6% stop loss from entry is hit. Only buys dips while price is above
-    the 200-hour SMA (don't catch knives in a downtrend)."""
+    or a 6% stop loss from entry is hit. No trend filter: it buys dips in any market."""
     c = closes(done(md["BTC"]["1h"]))
     r = rsi(c[-120:], 14)
     price = md["BTC"]["price"]
     inpos = memo.get("in", False)
-    if not inpos and r < 30 and c[-1] > sma(c, 200):
+    if not inpos and r < 30:
         inpos, memo["entry"] = True, price
     elif inpos and (r > 55 or price < memo.get("entry", price) * 0.94):
         inpos = False
     memo["in"] = inpos
+    memo["why"] = (f"Holding BTC, exits at RSI > 55 (now {r:.0f}) or stop "
+                   f"${memo.get('entry', price) * 0.94:,.0f}" if inpos else
+                   f"Waiting for hourly RSI below 30 (now {r:.0f})")
     return {"BTC": 1.0} if inpos else {}
 
 
@@ -114,6 +130,9 @@ def bollinger_reversion(md, memo):
     elif inpos and (c[-1] >= mid or price < memo.get("entry", price) * 0.92):
         inpos = False
     memo["in"] = inpos
+    memo["why"] = (f"Holding SOL, exits at middle band ${mid:,.2f}" if inpos else
+                   f"Waiting for an hourly close below ${mid - 2 * sd:,.2f} "
+                   f"({pct((mid - 2 * sd) / c[-1] - 1)} from here)")
     return {"SOL": 1.0} if inpos else {}
 
 
@@ -122,7 +141,9 @@ def momentum_rotation(md, memo, now=None):
     Every 7 days: rank by 14-day return, hold the top 3 equally, but only those
     with a positive return. Otherwise cash."""
     last = memo.get("last_rebalance", 0)
-    if now is not None and now - last < 7 * 86400 and "weights" in memo:
+    # hold picks for 7 days; while in cash, re-check daily so it can re-enter promptly
+    hold = 7 * 86400 if memo.get("weights") else 86400
+    if now is not None and now - last < hold and "weights" in memo:
         return memo["weights"]
     scores = {}
     for a, d in md.items():
@@ -133,6 +154,10 @@ def momentum_rotation(md, memo, now=None):
     w = {a: 1 / 3 for a in top if scores[a] > 0}
     memo["weights"], memo["last_rebalance"], memo["scores"] = w, now or 0, {
         a: round(s, 4) for a, s in scores.items()}
+    best = top[0] if top else None
+    memo["why"] = (f"Holding {', '.join(w)} until next weekly rebalance" if w else
+                   f"All 8 coins down over 14 days (best: {best} {pct(scores[best])}); "
+                   f"re-checks daily for any coin turning positive")
     return w
 
 
@@ -158,20 +183,64 @@ def grid_eth(md, memo):
         cur = math.ceil(x)
     cur = max(0, min(levels, cur))
     memo["level"] = cur
+    memo["why"] = (f"Grid ${lo:,.0f} to ${hi:,.0f}, {cur}/{levels} levels filled; "
+                   f"next buy ${hi - (cur + 1) * step:,.0f}, next sell ${hi - (cur - 1) * step:,.0f}")
     return {"ETH": cur / levels}
 
 
-def vol_target(md, memo):
+def dca_btc(md, memo, now=None):
+    """Dollar cost averaging: spread the $100 into BTC evenly over 30 days instead of all at
+    once. Answers the practical question: lump sum (benchmark) or drip it in?"""
+    memo.setdefault("start", now or 0)
+    days = ((now or 0) - memo["start"]) / 86400
+    frac = min(1.0, (days + 1) / 30)
+    memo["band"] = 0.02  # small band so it buys roughly $3 a day
+    memo["why"] = (f"Day {days:.0f} of 30: target {frac * 100:.0f}% in BTC" if frac < 1 else
+                   "Fully invested, now holding")
+    return {"BTC": frac}
+
+
+def crash_buyer(md, memo):
+    """Contrarian: buy BTC in thirds as it falls 15% / 25% / 35% below its 60 day high.
+    Sell everything once it recovers to within 5% of the high it fell from."""
+    d = done(md["BTC"]["1d"])
+    price = md["BTC"]["price"]
+    hi60 = max(r["h"] for r in d[-60:])
+    dd = 1 - price / hi60
+    tier = memo.get("tier", 0)
+    ref = memo.get("ref_high", hi60)
+    if tier and price >= ref * 0.95:
+        tier = 0  # recovered: take profit
+    else:
+        new = 3 if dd >= 0.35 else 2 if dd >= 0.25 else 1 if dd >= 0.15 else 0
+        if new > tier:
+            if tier == 0:
+                ref = hi60
+            tier = new
+    memo["tier"], memo["ref_high"] = tier, ref
+    nxt = {0: 0.15, 1: 0.25, 2: 0.35}.get(tier)
+    memo["why"] = (f"BTC {dd * 100:.0f}% below 60d high ${hi60:,.0f}; holding {tier}/3, "
+                   + (f"next buy at {nxt * 100:.0f}% down (${hi60 * (1 - nxt):,.0f}), " if nxt else "")
+                   + f"sells at ${ref * 0.95:,.0f}" if tier else
+                   f"BTC {dd * 100:.0f}% below 60d high ${hi60:,.0f}; first buy at 15% down "
+                   f"(${hi60 * 0.85:,.0f})")
+    return {"BTC": tier / 3} if tier else {}
+
+
+def vol_target(md, memo):  # noqa: C901
     """Volatility-targeted trend on BTC + ETH. Each coin gets up to half the account,
     only if its 30-day return is positive, scaled by 50% / realised 20-day annual vol."""
-    w = {}
+    w, why = {}, []
     for a in ("BTC", "ETH"):
         c = closes(done(md[a]["1d"]))
         if c[-1] / c[-31] - 1 <= 0:
+            why.append(f"{a} 30d return {pct(c[-1] / c[-31] - 1)} (needs > 0)")
             continue
         rets = [math.log(b / a_) for a_, b in zip(c[-21:-1], c[-20:])]
         vol = stdev(rets) * math.sqrt(365)
         w[a] = 0.5 * min(1.0, 0.50 / max(vol, 1e-9))
+        why.append(f"{a} long {w[a] * 100:.0f}% (vol {vol * 100:.0f}%)")
+    memo["why"] = "; ".join(why)
     return w
 
 
@@ -183,16 +252,16 @@ STRATEGIES = [
      "Time series momentum. Rides bull runs, sits in cash during crashes.", ["BTC"]),
     ("ema_cross_6h", "EMA 9/21 crossover (ETH 6h)", ema_cross_6h,
      "Faster momentum signal, similar to MACD. More trades, reacts quicker.", ["ETH"]),
-    ("donchian", "Turtle breakout 20/10 (BTC+ETH)", donchian_turtle,
-     "Classic channel breakout. Buys new highs, cuts on new lows.", ["BTC", "ETH"]),
+    ("dca_btc", "Daily DCA into BTC (30 days)", dca_btc,
+     "Drip the $100 in about $3 a day. Lump sum vs DCA, settled with data.", ["BTC"]),
+    ("crash_buyer", "Crash buyer (BTC, buys in thirds)", crash_buyer,
+     "Contrarian: buys 15/25/35% drawdowns, sells on recovery.", ["BTC"]),
     ("rsi_reversion", "RSI dip buyer (BTC 1h)", rsi_reversion,
-     "Short term mean reversion: buy oversold dips in an uptrend.", ["BTC"]),
+     "Short term mean reversion: buys oversold hours in any market, 6% stop.", ["BTC"]),
     ("bollinger", "Bollinger band reversion (SOL 1h)", bollinger_reversion,
      "Buys statistically stretched drops on a volatile coin.", ["SOL"]),
     ("momentum_rotation", "Dual momentum rotation (top 3 of 8)", momentum_rotation,
      "Weekly rotation into the strongest coins; cash if nothing is rising.", None),
     ("grid_eth", "Grid trader (ETH ±10%)", grid_eth,
      "Profits from chop: buys every dip level, sells every rip level.", ["ETH"]),
-    ("vol_target", "Volatility targeted trend (BTC+ETH)", vol_target,
-     "Trend filter plus risk sizing: smaller positions when markets are wild.", ["BTC", "ETH"]),
 ]

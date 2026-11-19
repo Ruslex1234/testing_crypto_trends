@@ -39,6 +39,7 @@ td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-rig
 .up{color:var(--up)}.down{color:var(--down)}
 .chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:12px;font-family:"JetBrains Mono",monospace}
 .thesis{color:var(--muted);font-size:13px}
+.why{color:var(--accent);font-size:12.5px;margin-top:3px}
 .chartbox{position:relative;height:380px}
 details{border-top:1px solid var(--line);padding:10px 0}
 details:first-of-type{border-top:0}
@@ -135,7 +136,7 @@ function render(s){
   $("#board tbody").innerHTML=ranked.map((a,i)=>{
     const hold=Object.keys(a.holdings||{}).length?Object.entries(a.holdings).map(([k,q])=>`<span class="chip">${k}</span>`).join(" "):'<span class="chip">cash</span>';
     return `<tr><td>${i+1}</td>
-    <td><span class="dot" style="background:${a.color}"></span><b>${a.name}</b><div class="thesis">${a.thesis}</div>${a.error?`<div class="err">${a.error}</div>`:""}</td>
+    <td><span class="dot" style="background:${a.color}"></span><b>${a.name}</b><div class="thesis">${a.thesis}</div>${a.memo&&a.memo.why?`<div class="why">▸ ${a.memo.why}</div>`:""}${a.error?`<div class="err">${a.error}</div>`:""}</td>
     <td>${usd(a.equity)}</td><td class="${cls(a.ret)}">${pct(a.ret)}</td>
     <td class="${cls(a.ret-bench.ret)}">${a.id==="hodl_btc"?"—":pct(a.ret-bench.ret)}</td>
     <td>${(a.dd*100).toFixed(1)}%</td><td>${a.score.toFixed(2)}</td>

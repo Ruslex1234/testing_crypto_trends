@@ -17,19 +17,24 @@ mechanical (no discretion), and being runnable with $100 (no leverage, no shorti
 | 1 | **Buy & Hold BTC** | BTC | Buy once, never sell | The benchmark. Most active strategies fail to beat it after costs. |
 | 2 | **Trend: 50 day SMA** | BTC | Hold BTC while daily close > 50 day average, else cash | Time series momentum (Moskowitz, Ooi, Pedersen 2012). Moving average rules on bitcoin show predictive power (Detzel et al. 2021). Main payoff: dodging large crashes. |
 | 3 | **EMA 9/21 crossover** | ETH, 6h candles | Long when fast EMA > slow EMA | Faster momentum signal (MACD family). Catches moves earlier, pays more in whipsaw fees. |
-| 4 | **Turtle breakout 20/10** | BTC + ETH, daily | Buy a 20 day high, sell a 10 day low, 50% per coin | Donchian channel breakout, the core of the Turtle system and most CTA trend funds. |
-| 5 | **RSI dip buyer** | BTC, 1h | Buy RSI(14) < 30 only above 200h SMA; exit RSI > 55 or 6% stop | Short horizon mean reversion inside an uptrend (Connors style). |
-| 6 | **Bollinger reversion** | SOL, 1h | Buy close below lower band (20, 2σ), sell at middle band, 8% stop | Mean reversion on a high volatility coin. Higher risk entry. |
-| 7 | **Dual momentum rotation** | top 3 of BTC, ETH, SOL, XRP, DOGE, ADA, AVAX, LINK | Weekly: hold top 3 by 14 day return, only if positive, else cash | Cross sectional crypto momentum (Liu & Tsyvinski 2021; Liu, Tsyvinski, Wu 2022) plus an absolute momentum filter (Antonacci). |
-| 8 | **Grid trader** | ETH | 10 levels across ±10%: buy each level down, sell each level up; re-centres if price escapes | Classic exchange bot. Wins in sideways chop, lags in strong trends. |
-| 9 | **Volatility targeted trend** | BTC + ETH | Long a coin only if 30 day return > 0, sized to 50% annual vol target | Volatility scaling improves risk adjusted returns (Moreira & Muir 2017; Harvey et al. 2018). |
+| 4 | **Daily DCA** | BTC | Spread the $100 into BTC over 30 days (~$3/day) | The realistic beginner approach. Head to head with #1 it answers: lump sum or drip it in? (Vanguard 2012: lump sum wins ~2/3 of the time, DCA lowers regret.) |
+| 5 | **Crash buyer** | BTC | Buy 1/3 at 15%, 2/3 at 25%, all at 35% below the 60 day high; sell at 95% of that high | Contrarian counterweight to the trend strategies, so the arena has something that acts in falling markets. |
+| 6 | **RSI dip buyer** | BTC, 1h | Buy RSI(14) < 30; exit RSI > 55 or 6% stop | Short horizon mean reversion (Connors style). No trend filter. |
+| 7 | **Bollinger reversion** | SOL, 1h | Buy close below lower band (20, 2σ), sell at middle band, 8% stop | Mean reversion on a high volatility coin. Higher risk entry. |
+| 8 | **Dual momentum rotation** | top 3 of BTC, ETH, SOL, XRP, DOGE, ADA, AVAX, LINK | Weekly: hold top 3 by 14 day return, only if positive, else cash | Cross sectional crypto momentum (Liu & Tsyvinski 2021; Liu, Tsyvinski, Wu 2022) plus an absolute momentum filter (Antonacci). |
+| 9 | **Grid trader** | ETH | 10 levels across ±10%: buy each level down, sell each level up; re-centres if price escapes | Classic exchange bot. Wins in sideways chop, lags in strong trends. |
 
 ## How realistic is it
 
 * **Fees:** 0.40% per fill (Kraken Pro entry tier taker). Coinbase Advanced charges ~0.60% at this size, so real costs may be higher.
 * **Slippage:** 0.05% on BTC/ETH, 0.15% on other coins, always against you.
 * **Execution:** signals on completed candles only (no lookahead), filled at the latest trade price. Fractional coins, $1 minimum order.
-* **Churn control:** rebalances only when a position is >10% of equity off target.
+* **Churn control:** rebalances only when a position is >10% of equity off target (2% for DCA).
+* **Transparency:** every strategy prints what it is waiting for on the dashboard.
+
+Changed on day 1 (2026-11-19): Turtle breakout and volatility targeted trend were retired
+(they duplicated the 50 day trend signal and all sat in cash together); DCA and crash buyer
+replaced them, and the RSI dip buyer lost its uptrend filter.
 * **Not modelled:** taxes, withdrawal fees, exchange downtime, partial fills.
 
 ## Setup (one time, about 2 minutes)
