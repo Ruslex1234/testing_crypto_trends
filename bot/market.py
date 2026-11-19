@@ -44,7 +44,7 @@ def _kraken(asset, minutes):
 
 def candles(asset, interval):
     """interval: '1h' or '1d'. Returns oldest->newest; the last candle is still forming."""
-    gran, mins = {"1h": (3600, 60), "1d": (86400, 1440)}[interval]
+    gran, mins = {"5m": (300, 5), "1h": (3600, 60), "1d": (86400, 1440)}[interval]
     try:
         rows = _coinbase(asset, gran)
         src = "coinbase"
@@ -78,6 +78,11 @@ def load_all():
             h, s1 = candles(a, "1h")
             d, s2 = candles(a, "1d")
             data[a] = {"1h": h, "1d": d, "6h": resample(h, 6), "price": h[-1]["c"]}
+            try:
+                data[a]["5m"], _ = candles(a, "5m")
+                data[a]["price"] = data[a]["5m"][-1]["c"]
+            except Exception:  # noqa: BLE001  (hourly fallback still works)
+                pass
             sources |= {s1, s2}
         except Exception as e:  # noqa: BLE001
             errors[a] = str(e)

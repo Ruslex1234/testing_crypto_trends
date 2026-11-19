@@ -39,6 +39,7 @@ td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-rig
 .up{color:var(--up)}.down{color:var(--down)}
 .chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:12px;font-family:"JetBrains Mono",monospace}
 .thesis{color:var(--muted);font-size:13px}
+.scen td:nth-child(3),.scen th:nth-child(3){text-align:left}
 .pos{padding:1px 0;font-size:13px}
 .why{color:var(--accent);font-size:12.5px;margin-top:3px}
 .chartbox{position:relative;height:380px}
@@ -71,6 +72,18 @@ summary{cursor:pointer;font-weight:500}
   <div class="card">
     <h2>Balance over time</h2>
     <div class="chartbox"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Hourly decision scorecard</h2>
+    <p class="foot" style="margin-top:-6px">Every run, each strategy decides to be in, be out, or change nothing. The next runs score that decision with prices it couldn't see. <b>Follow</b> = what obeying the strategy earned; <b>Opposite</b> = what doing the reverse earned (out when it was in, in when it was out).</p>
+    <div class="tbl"><table id="dec"><thead><tr><th>#</th><th>Strategy</th><th>Hours</th><th>Moves</th><th>Right after 1h</th><th>Right after 24h</th><th>Follow (sum of 1h)</th><th>Opposite</th><th>Edge</th></tr></thead><tbody></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Scenario log</h2>
+    <p class="foot" style="margin-top:-6px">Each strategy publishes the price levels it is watching (entry triggers, take profits, grid lines, breakouts). Every run checks the real 5 minute highs and lows since the last run; a level that was crossed is logged, then re-checked 24h later.</p>
+    <div id="scen"></div>
   </div>
 
   <div class="card">
@@ -170,6 +183,22 @@ function render(s){
               y:{grid:{color:grid},ticks:{color:ink,callback:v=>"$"+v}}},
       plugins:{legend:{display:innerWidth>600,position:"bottom",labels:{color:ink,boxWidth:12,font:{size:11}}},
         tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x/1000),label:c=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}}}});
+
+  // Decision scorecard
+  const pc=(x,d=1)=>`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${(x*100).toFixed(d)}%</span>`;
+  const rate=h=>h&&h.n?`${(h.right/h.n*100).toFixed(0)}% <span class="thesis">of ${h.n}</span>`:'<span class="chip">pending</span>';
+  const decRows=accts.filter(a=>a.journal).map(a=>({a,j:a.journal,edge:(a.journal["1h"]||{}).with-(a.journal["1h"]||{}).against}))
+    .sort((x,y)=>(y.edge||0)-(x.edge||0));
+  $("#dec tbody").innerHTML=decRows.map(({a,j,edge},i)=>{const h=j["1h"]||{};return `<tr><td>${i+1}</td>
+    <td><span class="dot" style="background:${a.color}"></span>${a.name}${j.last?`<div class="thesis">now ${(j.last.exposure*100).toFixed(0)}% invested${j.last.traded?" · traded this run":" · no move this run"}</div>`:""}</td>
+    <td>${j.runs}</td><td>${j.moves}</td><td>${rate(j["1h"])}</td><td>${rate(j["24h"])}</td>
+    <td>${h.n?pc(h.with,2):"—"}</td><td>${h.n?pc(h.against,2):"—"}</td><td>${h.n?pc(edge,2):"—"}</td></tr>`}).join("");
+
+  // Scenario log
+  const sc=accts.flatMap(a=>(a.scenarios||[]).map(e=>({...e,name2:a.name,color:a.color}))).sort((x,y)=>y.t-x.t);
+  $("#scen").innerHTML=sc.length?`<div class="tbl"><table class="scen"><thead><tr><th>When</th><th>Strategy</th><th>Scenario</th><th>Coin</th><th>Level</th><th>Price 24h later</th></tr></thead><tbody>${
+    sc.slice(0,40).map(e=>`<tr><td>${fmtT(e.t).slice(5)}</td><td><span class="dot" style="background:${e.color}"></span>${e.name2}</td><td>${e.name} <span class="thesis">(${e.dir==="above"?"rose through":"fell through"})</span></td><td>${e.asset}</td><td>${fmtP(e.level)}</td><td>${e.after["24h"]===undefined?'<span class="chip">pending</span>':pc(e.after["24h"])}</td></tr>`).join("")
+    }</tbody></table></div>`:'<p class="foot">No watched levels crossed yet. Checked every run.</p>';
 
   // Stop scorecard
   const evs=accts.flatMap(a=>(a.stop_events||[]).map(e=>({...e,name:a.name,color:a.color})));

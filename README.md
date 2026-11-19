@@ -42,6 +42,18 @@ After any stop-out the coin is blocked for 24h so the strategy can't instantly r
 stop is re-checked 24h and 72h later: if price kept falling, the stop **saved** money; if it
 bounced, it **cost** money. The dashboard's stop scorecard shows the tally.
 
+## Every hour is a scored decision
+
+Each run, every strategy decides: get in, get out, or do nothing. The run then uses data the
+previous run never saw (the 5 minute candles since then) to:
+
+* **Enforce stops against real lows**, like a resting stop order (gaps fill at the worse open).
+* **Score past decisions** after 1h and 24h: was being in/out right? *Follow* (obey the strategy)
+  vs *Opposite* (do the reverse). A strategy with negative edge is worth betting against.
+* **Log scenarios**: every level a strategy watches (entry trigger, take profit, grid line,
+  breakout, crash tier) is checked against real highs/lows; crossings are logged and re-checked
+  24h later.
+
 ## How realistic is it
 
 * **Fees:** 0.40% per fill (Kraken Pro entry tier taker). Coinbase Advanced charges ~0.60% at this size, so real costs may be higher.

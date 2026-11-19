@@ -30,12 +30,27 @@ def atr(rows, n=14):
     return sum(trs) / len(trs)
 
 
-def check_stops(acct, prices, now):
-    """Before the strategy runs: return assets whose stop was hit at the current price."""
+def check_stops(acct, md, prev, prices):
+    """Before the strategy runs: which stops were hit since the last run?
+    Uses the real hourly lows (not just the price at wake-up), like a resting stop order.
+    Returns [(asset, fill_price)]; a candle that opens below the stop fills at its open (gap)."""
+    from journal import new_candles
     hit = []
     for a, st in acct.get("stops", {}).items():
-        if a in acct["holdings"] and a in prices and prices[a] <= st["stop"]:
-            hit.append(a)
+        if a not in acct["holdings"] or a not in prices:
+            continue
+        fill = None
+        for r in new_candles(md[a], prev):
+            if r["o"] <= st["stop"]:
+                fill = r["o"]
+                break
+            if r["l"] <= st["stop"]:
+                fill = st["stop"]
+                break
+        if fill is None and prices[a] <= st["stop"]:
+            fill = prices[a]
+        if fill is not None:
+            hit.append((a, fill))
     return hit
 
 

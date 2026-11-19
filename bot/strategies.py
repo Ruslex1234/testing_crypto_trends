@@ -73,7 +73,8 @@ def ema_cross_6h(md, memo):
     fast, slow = ema_series(c, 9)[-1], ema_series(c, 21)[-1]
     k9, k21 = 2 / 10, 2 / 22
     cross = (slow * (1 - k21) - fast * (1 - k9)) / (k9 - k21)  # 6h close that makes EMAs meet
-    memo["entry_level"] = {"ETH": cross}
+    memo["levels"] = [{"name": "EMA sell trigger" if fast > slow else "EMA buy trigger",
+                       "asset": "ETH", "price": cross, "dir": "below" if fast > slow else "above"}]
     memo["why"] = (f"Long ETH: fast EMA {pct(fast / slow - 1)} above slow" if fast > slow else
                    f"Buys if a 6h candle closes above ${cross:,.0f} "
                    f"({pct(cross / md['ETH']['price'] - 1)} from here)")
@@ -136,6 +137,10 @@ def bollinger_reversion(md, memo):
         inpos = False
     memo["in"] = inpos
     memo["stops"] = {"SOL": memo["entry"] * 0.92} if inpos else {}
+    memo["levels"] = [{"name": "BB take profit (mid band)", "asset": "SOL", "price": mid,
+                       "dir": "above"} if inpos else
+                      {"name": "BB buy (lower band)", "asset": "SOL", "price": mid - 2 * sd,
+                       "dir": "below"}]
     memo["why"] = (f"Holding SOL, exits at middle band ${mid:,.2f}" if inpos else
                    f"Waiting for an hourly close below ${mid - 2 * sd:,.2f} "
                    f"({pct((mid - 2 * sd) / c[-1] - 1)} from here)")
@@ -194,6 +199,10 @@ def grid_eth(md, memo):
         cur = math.ceil(x)
     cur = max(0, min(levels, cur))
     memo["level"] = cur
+    memo["levels"] = ([{"name": "grid buy", "asset": "ETH", "price": hi - (cur + 1) * step,
+                        "dir": "below"}] if cur < levels else []) + (
+        [{"name": "grid sell", "asset": "ETH", "price": hi - (cur - 1) * step, "dir": "above"}]
+        if cur > 0 else [])
     memo["why"] = (f"Grid ${lo:,.0f} to ${hi:,.0f}, {cur}/{levels} levels filled; "
                    f"next buy ${hi - (cur + 1) * step:,.0f}, next sell ${hi - (cur - 1) * step:,.0f}")
     return {"ETH": cur / levels}
@@ -230,6 +239,10 @@ def crash_buyer(md, memo):
             tier = new
     memo["tier"], memo["ref_high"] = tier, ref
     nxt = {0: 0.15, 1: 0.25, 2: 0.35}.get(tier)
+    memo["levels"] = ([{"name": f"crash buy tier {tier + 1}", "asset": "BTC",
+                        "price": hi60 * (1 - nxt), "dir": "below"}] if nxt else []) + (
+        [{"name": "crash take profit", "asset": "BTC", "price": ref * 0.95, "dir": "above"}]
+        if tier else [])
     memo["why"] = (f"BTC {dd * 100:.0f}% below 60d high ${hi60:,.0f}; holding {tier}/3, "
                    + (f"next buy at {nxt * 100:.0f}% down (${hi60 * (1 - nxt):,.0f}), " if nxt else "")
                    + f"sells at ${ref * 0.95:,.0f}" if tier else
@@ -261,6 +274,9 @@ def trw_tpi(md, memo):
     memo["tpi"] = tpi
     bulls = [k for k, v in votes.items() if v]
     e21 = ema_series(c, 21)[-1]
+    up = c[-1] > e21
+    memo["levels"] = [{"name": "TPI: EMA21 " + ("lost" if up else "reclaimed"), "asset": "BTC",
+                       "price": e21, "dir": "below" if up else "above"}]
     memo["why"] = (f"TPI {tpi:+.2f} (long while > 0). Bullish: "
                    f"{', '.join(bulls) if bulls else 'none'}. Key levels: EMA21 ${e21:,.0f}, "
                    f"20d midpoint ${(hi20 + lo20) / 2:,.0f}, SMA50 ${sma(c, 50):,.0f}")
@@ -273,7 +289,7 @@ def trw_box(md, memo):
     only in a trend (price > 50 SMA and EMA9 > EMA21). Stop at box middle; size the position so a
     stop-out costs 3% of the account. Exit at the stop or a daily close below EMA21.
     Runs on BTC, ETH, SOL independently."""
-    w, why = {}, []
+    w, why, levels = {}, [], []
     risk = 0.03
     for a in ("BTC", "ETH", "SOL"):
         d = done(md[a]["1d"])
@@ -290,6 +306,7 @@ def trw_box(md, memo):
                 continue
         box = d[-21:-1]
         top, bot = max(r["h"] for r in box), min(r["l"] for r in box)
+        levels.append({"name": "box top breakout", "asset": a, "price": top, "dir": "above"})
         tight = top / bot - 1 < 0.30
         trend = c[-1] > sma(c, 50) and e9 > e21
         if c[-1] > top and tight and trend:
@@ -307,6 +324,7 @@ def trw_box(md, memo):
             why.append(f"{a} needs {' + '.join(need)}")
     memo["why"] = "; ".join(why)
     memo["stops"] = {a: memo[a]["stop"] for a in w if memo.get(a)}
+    memo["levels"] = levels
     return w
 
 
