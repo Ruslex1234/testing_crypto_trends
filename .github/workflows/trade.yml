@@ -1,12 +1,16 @@
 name: paper-trade
 
+# Runs hourly. GitHub's cron scheduler is best-effort (it delays or drops runs, especially on
+# new repos), so each run also re-dispatches itself for the next :17 slot. The cron line
+# restarts the chain if it ever breaks. Disable this workflow in the Actions tab to stop it.
 on:
   schedule:
-    - cron: "17 * * * *"   # every hour at :17 UTC
+    - cron: "17 * * * *"
   workflow_dispatch: {}
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: paper-trade
@@ -15,7 +19,7 @@ concurrency:
 jobs:
   trade:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v5
       - name: Run strategies
@@ -32,3 +36,17 @@ jobs:
             sleep $((i * 5))
           done
           exit 1
+      - name: Schedule next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now=$(date -u +%s)
+          next=$(( now - now % 3600 + 17 * 60 ))
+          while [ $(( next - now )) -lt 600 ]; do next=$(( next + 3600 )); done
+          echo "sleeping $(( next - now ))s until $(date -u -d @$next +%H:%M) UTC"
+          sleep $(( next - now ))
+          pending=$(gh run list -R "$GITHUB_REPOSITORY" --workflow trade.yml --limit 20 \
+            --json databaseId,status -q "[.[] | select(.databaseId != ${GITHUB_RUN_ID} and (.status==\"queued\" or .status==\"in_progress\" or .status==\"waiting\" or .status==\"pending\" or .status==\"requested\"))] | length")
+          if [ "${pending:-0}" -gt 0 ]; then echo "another run already queued; not chaining"; exit 0; fi
+          gh workflow run trade.yml -R "$GITHUB_REPOSITORY" --ref "${GITHUB_REF_NAME}"
