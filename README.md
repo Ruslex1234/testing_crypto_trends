@@ -25,6 +25,23 @@ mechanical (no discretion), and being runnable with $100 (no leverage, no shorti
 | 9 | **Dual momentum rotation** | top 3 of BTC, ETH, SOL, XRP, DOGE, ADA, AVAX, LINK | Weekly: hold top 3 by 14 day return, only if positive, else cash | Cross sectional crypto momentum (Liu & Tsyvinski 2021; Liu, Tsyvinski, Wu 2022) plus an absolute momentum filter (Antonacci). |
 | 10 | **Grid trader** | ETH | 10 levels across ±10%: buy each level down, sell each level up; re-centres if price escapes | Classic exchange bot. Wins in sideways chop, lags in strong trends. |
 
+## Stops and how they're scored
+
+Enforced every hourly run by `bot/risk.py`, before the strategy gets a say:
+
+| Strategy | Stop |
+|---|---|
+| TRW TPI, EMA crossover | Trailing: highest price since entry minus 2.5 × ATR(14d). Only moves up. |
+| Momentum rotation | Same, 3 × ATR (alts swing harder) |
+| RSI dip buyer / Bollinger | 6% / 8% below entry |
+| TRW box breakout | Middle of the box; position sized so a stop costs 3% of the account |
+| Crash buyer | Disaster stop 45% below its reference high, then 7 day cooldown |
+| Buy & hold, DCA, grid | None by design |
+
+After any stop-out the coin is blocked for 24h so the strategy can't instantly rebuy. Every
+stop is re-checked 24h and 72h later: if price kept falling, the stop **saved** money; if it
+bounced, it **cost** money. The dashboard's stop scorecard shows the tally.
+
 ## How realistic is it
 
 * **Fees:** 0.40% per fill (Kraken Pro entry tier taker). Coinbase Advanced charges ~0.60% at this size, so real costs may be higher.

@@ -39,6 +39,7 @@ td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-rig
 .up{color:var(--up)}.down{color:var(--down)}
 .chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:12px;font-family:"JetBrains Mono",monospace}
 .thesis{color:var(--muted);font-size:13px}
+.pos{padding:1px 0;font-size:13px}
 .why{color:var(--accent);font-size:12.5px;margin-top:3px}
 .chartbox{position:relative;height:380px}
 details{border-top:1px solid var(--line);padding:10px 0}
@@ -62,7 +63,7 @@ summary{cursor:pointer;font-weight:500}
   <div class="card">
     <h2>Leaderboard</h2>
     <div class="tbl"><table id="board"><thead><tr>
-      <th>#</th><th>Strategy</th><th>Balance</th><th>Return</th><th>vs BTC</th><th>Max DD</th><th>Score</th><th>Trades</th><th>Fees</th><th>Holding</th>
+      <th>#</th><th>Strategy</th><th>Balance</th><th>Return</th><th>vs BTC</th><th>Max DD</th><th>Score</th><th>Trades</th><th>Fees</th><th>Position · stop</th>
     </tr></thead><tbody></tbody></table></div>
     <p class="foot">Score = return ÷ max drawdown (higher is better: profit per unit of pain). Max DD = worst peak to trough drop.</p>
   </div>
@@ -70,6 +71,12 @@ summary{cursor:pointer;font-weight:500}
   <div class="card">
     <h2>Balance over time</h2>
     <div class="chartbox"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Stop scorecard</h2>
+    <p class="foot" style="margin-top:-6px">Every stop-out is re-checked 24h and 72h later. Price lower afterwards = the stop <span class="up">saved</span> money; higher = it <span class="down">cost</span> money (a whipsaw).</p>
+    <div id="stops"></div>
   </div>
 
   <div class="card">
@@ -87,6 +94,14 @@ const usd=x=>"$"+x.toFixed(2);
 const cls=x=>x>=0?"up":"down";
 const fmtT=t=>new Date(t*1000).toISOString().slice(0,16).replace("T"," ")+" UTC";
 
+const fmtP=p=>"$"+(p>=100?Math.round(p).toLocaleString():p>=1?p.toFixed(2):p.toPrecision(3));
+function stopCell(a){
+  const st=Object.entries(a.stops||{});
+  const held=Object.keys(a.holdings||{});
+  if(!held.length) return '<span class="chip">cash</span>';
+  const S=a.stops||{};
+  return held.map(k=>`<div class="pos" title="${S[k]?S[k].type:"no stop by design"}"><span class="chip">${k}</span> ${S[k]?`${fmtP(S[k].stop)} <span class="down">${(S[k].dist*100).toFixed(1)}%</span>`:'<span class="thesis">no stop</span>'}</div>`).join("");
+}
 function maxDD(h){let pk=-1,dd=0;for(const[,v]of h){pk=Math.max(pk,v);dd=Math.max(dd,(pk-v)/pk)}return dd}
 
 fetch("data/state.json?ts="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(render).catch(e=>{
@@ -140,7 +155,7 @@ function render(s){
     <td>${usd(a.equity)}</td><td class="${cls(a.ret)}">${pct(a.ret)}</td>
     <td class="${cls(a.ret-bench.ret)}">${a.id==="hodl_btc"?"—":pct(a.ret-bench.ret)}</td>
     <td>${(a.dd*100).toFixed(1)}%</td><td>${a.score.toFixed(2)}</td>
-    <td>${a.trades.length}</td><td>${usd(a.fees_paid)}</td><td>${hold}</td></tr>`}).join("");
+    <td>${a.trades.length}</td><td>${usd(a.fees_paid)}</td><td>${stopCell(a)}</td></tr>`}).join("");
 
   // Chart
   const css=getComputedStyle(document.documentElement);
@@ -155,6 +170,16 @@ function render(s){
               y:{grid:{color:grid},ticks:{color:ink,callback:v=>"$"+v}}},
       plugins:{legend:{display:innerWidth>600,position:"bottom",labels:{color:ink,boxWidth:12,font:{size:11}}},
         tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x/1000),label:c=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}}}});
+
+  // Stop scorecard
+  const evs=accts.flatMap(a=>(a.stop_events||[]).map(e=>({...e,name:a.name,color:a.color})));
+  const verdict=x=>x===undefined?'<span class="chip">pending</span>':`<span class="${x<0?"up":"down"}">${x<0?"saved":"cost"} ${Math.abs(x*100).toFixed(1)}%</span>`;
+  const done72=evs.filter(e=>e.after["72h"]!==undefined);
+  const saved=done72.filter(e=>e.after["72h"]<0).length;
+  $("#stops").innerHTML=evs.length?`<p>${evs.length} stop-outs so far. Of ${done72.length} fully scored, ${saved} saved money and ${done72.length-saved} were whipsaws.</p>
+    <div class="tbl"><table><thead><tr><th>When</th><th>Strategy</th><th>Coin</th><th>Exit</th><th>After 24h</th><th>After 72h</th></tr></thead><tbody>${
+    evs.sort((a,b)=>b.t-a.t).map(e=>`<tr><td>${fmtT(e.t).slice(5)}</td><td><span class="dot" style="background:${e.color}"></span>${e.name}</td><td>${e.asset}</td><td>${fmtP(e.exit)}</td><td>${verdict(e.after["24h"])}</td><td>${verdict(e.after["72h"])}</td></tr>`).join("")
+    }</tbody></table></div>`:'<p class="foot">No stops hit yet. Active stops are listed in the leaderboard\'s Stop column and checked every hour.</p>';
 
   // Logs
   $("#logs").innerHTML=ranked.map(a=>`<details><summary>${a.name} · ${a.trades.length} trade${a.trades.length===1?"":"s"}</summary><div class="trades">${

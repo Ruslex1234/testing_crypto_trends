@@ -71,8 +71,12 @@ def ema_cross_6h(md, memo):
     """ETH on 6h candles: long when EMA(9) > EMA(21) (MACD-style momentum), else cash."""
     c = closes(done(md["ETH"]["6h"]))
     fast, slow = ema_series(c, 9)[-1], ema_series(c, 21)[-1]
+    k9, k21 = 2 / 10, 2 / 22
+    cross = (slow * (1 - k21) - fast * (1 - k9)) / (k9 - k21)  # 6h close that makes EMAs meet
+    memo["entry_level"] = {"ETH": cross}
     memo["why"] = (f"Long ETH: fast EMA {pct(fast / slow - 1)} above slow" if fast > slow else
-                   f"Waiting for 6h EMA9 to cross above EMA21 (gap {pct(fast / slow - 1)})")
+                   f"Buys if a 6h candle closes above ${cross:,.0f} "
+                   f"({pct(cross / md['ETH']['price'] - 1)} from here)")
     return {"ETH": 1.0} if fast > slow else {}
 
 
@@ -111,6 +115,7 @@ def rsi_reversion(md, memo):
     elif inpos and (r > 55 or price < memo.get("entry", price) * 0.94):
         inpos = False
     memo["in"] = inpos
+    memo["stops"] = {"BTC": memo["entry"] * 0.94} if inpos else {}
     memo["why"] = (f"Holding BTC, exits at RSI > 55 (now {r:.0f}) or stop "
                    f"${memo.get('entry', price) * 0.94:,.0f}" if inpos else
                    f"Waiting for hourly RSI below 30 (now {r:.0f})")
@@ -130,6 +135,7 @@ def bollinger_reversion(md, memo):
     elif inpos and (c[-1] >= mid or price < memo.get("entry", price) * 0.92):
         inpos = False
     memo["in"] = inpos
+    memo["stops"] = {"SOL": memo["entry"] * 0.92} if inpos else {}
     memo["why"] = (f"Holding SOL, exits at middle band ${mid:,.2f}" if inpos else
                    f"Waiting for an hourly close below ${mid - 2 * sd:,.2f} "
                    f"({pct((mid - 2 * sd) / c[-1] - 1)} from here)")
@@ -254,8 +260,10 @@ def trw_tpi(md, memo):
     tpi = sum(1 if v else -1 for v in votes.values()) / len(votes)
     memo["tpi"] = tpi
     bulls = [k for k, v in votes.items() if v]
+    e21 = ema_series(c, 21)[-1]
     memo["why"] = (f"TPI {tpi:+.2f} (long while > 0). Bullish: "
-                   f"{', '.join(bulls) if bulls else 'none'}")
+                   f"{', '.join(bulls) if bulls else 'none'}. Key levels: EMA21 ${e21:,.0f}, "
+                   f"20d midpoint ${(hi20 + lo20) / 2:,.0f}, SMA50 ${sma(c, 50):,.0f}")
     return {"BTC": 1.0} if tpi > 0 else {}
 
 
@@ -298,6 +306,7 @@ def trw_box(md, memo):
                 need.append("tighter box")
             why.append(f"{a} needs {' + '.join(need)}")
     memo["why"] = "; ".join(why)
+    memo["stops"] = {a: memo[a]["stop"] for a in w if memo.get(a)}
     return w
 
 

@@ -17,6 +17,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 from strategies import STRATEGIES  # noqa: E402
+import risk  # noqa: E402
 
 START_CASH = 100.0
 FEE = 0.004
@@ -136,9 +137,26 @@ def step(state, md, now, errors=None, sources=None):
             acct["error"] = "market data missing this run; skipped"
         else:
             try:
+                memo = acct["memo"]
+                hit = risk.check_stops(acct, prices, now)
+                for a in hit:  # stop loss: exit fully before the strategy speaks
+                    _fill(acct, a, "sell", acct["holdings"][a] * prices[a], prices[a], now,
+                          "stop loss")
+                    risk.record_stop(acct, sid, a, prices[a], now)
+                    if "in" in memo:
+                        memo["in"] = False
+                    if isinstance(memo.get(a), dict):
+                        memo[a] = None
+                    if "tier" in memo:
+                        memo["tier"] = 0
                 kwargs = {"now": now} if "now" in inspect.signature(fn).parameters else {}
-                target = fn(md, acct["memo"], **kwargs)
+                target = dict(fn(md, memo, **kwargs))
+                for a in hit:
+                    target.pop(a, None)
+                target = risk.apply_cooldown(acct, target, now)
                 rebalance(acct, target, prices, now)
+                risk.update_stops(acct, sid, md, prices)
+                risk.evaluate_stop_events(acct, prices, now)
                 acct["target"] = target
                 acct["error"] = None
             except Exception as e:  # noqa: BLE001
