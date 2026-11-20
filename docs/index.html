@@ -75,6 +75,12 @@ summary{cursor:pointer;font-weight:500}
   </div>
 
   <div class="card">
+    <h2>CRT: Nasdaq (NQ) forward test</h2>
+    <p class="foot" style="margin-top:-6px">The CRT model that survived out-of-sample backtesting, now tracked live on real NQ futures data every hour. Only trades entered after the forward test started count. Results in R after MNQ costs, and as a $100 account risking 2% per trade. <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/REPORT.md">Research report</a> · <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/crt_indicator.pine">TradingView indicator</a></p>
+    <div id="crtfwd"></div>
+  </div>
+
+  <div class="card">
     <h2>Hourly decision scorecard</h2>
     <p class="foot" style="margin-top:-6px">Every run, each strategy decides to be in, be out, or change nothing. The next runs score that decision with prices it couldn't see. <b>Follow</b> = what obeying the strategy earned; <b>Opposite</b> = what doing the reverse earned (out when it was in, in when it was out).</p>
     <div class="tbl"><table id="dec"><thead><tr><th>#</th><th>Strategy</th><th>Hours</th><th>Moves</th><th>Right after 1h</th><th>Right after 24h</th><th>Follow (sum of 1h)</th><th>Opposite</th><th>Edge</th></tr></thead><tbody></tbody></table></div>
@@ -183,6 +189,20 @@ function render(s){
               y:{grid:{color:grid},ticks:{color:ink,callback:v=>"$"+v}}},
       plugins:{legend:{display:innerWidth>600,position:"bottom",labels:{color:ink,boxWidth:12,font:{size:11}}},
         tooltip:{callbacks:{title:i=>fmtT(i[0].parsed.x/1000),label:c=>`${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}}}});
+
+  // CRT forward test
+  const fw=s.crt_forward;
+  if(fw){
+    const tr=Object.values(fw.trades||{}).sort((a,b)=>b.entry_t-a.entry_t);
+    $("#crtfwd").innerHTML=`<div class="kpis" style="margin-bottom:10px">
+      <div class="kpi"><div class="l">Model</div><div class="v" style="font-size:15px">${fw.config}</div></div>
+      <div class="kpi"><div class="l">Forward trades</div><div class="v">${fw.n||0}${fw.n?` <span class="thesis">${fw.wins} won</span>`:""}</div></div>
+      <div class="kpi"><div class="l">Net R</div><div class="v ${(fw.net_r||0)>=0?"up":"down"}">${(fw.net_r||0)>=0?"+":""}${(fw.net_r||0).toFixed(2)}R</div></div>
+      <div class="kpi"><div class="l">$100 @ 2% risk</div><div class="v">${usd(fw.equity||100)}</div></div></div>
+      ${fw.error?`<p class="err">Data issue last run: ${fw.error}</p>`:""}
+      <p class="foot">Tracking since ${fmtT(fw.start)}${fw.last_price?` · NQ last ${Math.round(fw.last_price).toLocaleString()}`:""}. ${tr.length?"":"No CRT setups have triggered yet; at roughly 1 to 2 a day during market hours, expect the first within a day or two (NQ is closed on weekends)."}</p>
+      ${tr.length?`<div class="tbl"><table><thead><tr><th>Entry</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${tr.slice(0,30).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${x.entry.toFixed(2)}</td><td>${x.stop.toFixed(2)}</td><td>${x.target.toFixed(2)}</td><td>${x.exit.toFixed(2)} <span class="thesis">${x.reason}</span></td><td class="${x.r>=0?"up":"down"}">${x.r>=0?"+":""}${x.r.toFixed(2)}R</td></tr>`).join("")}</tbody></table></div>`:""}`;
+  }
 
   // Decision scorecard
   const pc=(x,d=1)=>`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${(x*100).toFixed(d)}%</span>`;
