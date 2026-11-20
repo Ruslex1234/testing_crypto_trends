@@ -54,6 +54,14 @@ previous run never saw (the 5 minute candles since then) to:
   breakout, crash tier) is checked against real highs/lows; crossings are logged and re-checked
   24h later.
 
+## CRT (Candle Range Theory) research
+
+Full report: [`docs/crt/REPORT.md`](docs/crt/REPORT.md). In short: on NQ futures, only **30M CRT**
+(aggressive entry, stop beyond the sweep, 2R) held up out of sample (+0.12R per trade over 379 trades
+after MNQ costs). 15M and 1H did not. It's being forward-tested hourly on live NQ data on the dashboard,
+and a Pine Script v6 indicator is in [`docs/crt/crt_indicator.pine`](docs/crt/crt_indicator.pine).
+The $100 arena account runs CRT on BTC 4H, the only timeframe where BTC ranges clear retail spot fees.
+
 ## How realistic is it
 
 * **Fees:** 0.40% per fill (Kraken Pro entry tier taker). Coinbase Advanced charges ~0.60% at this size, so real costs may be higher.
