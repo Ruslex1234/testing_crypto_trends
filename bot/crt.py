@@ -412,6 +412,10 @@ def passes(setup, cfg, ctx, bars, atr, atr_median, htf):
             o = c.get("open")
             if o is None or (setup["entry"] - o) * side > 0:
                 return False  # longs only below the daily open (discount), shorts above
+        elif f == "ny_hours":
+            h, _ = et_hour(t)
+            if not (7 <= h < 17):
+                return False  # New York hours only: Asia was the losing session in research
         elif f == "killzone":
             h, _ = et_hour(t)
             if not (2 <= h < 5 or 8.5 <= h < 11):

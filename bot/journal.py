@@ -16,11 +16,16 @@ MAX_SCENARIOS = 80
 
 def new_candles(mda, since):
     """Candles that started after `since` (the previous run): data the previous run never saw.
-    Prefers 5 minute candles for precision, falls back to hourly."""
+    Prefers 1 minute candles (same fills a person watching every minute would get), then 5m, then 1h."""
     if since is None:
         return []
-    rows = mda.get("5m") or mda["1h"]
-    return [r for r in rows if r["t"] >= since]
+    fine = mda.get("1m") or []
+    coarse = mda.get("5m") or mda["1h"]
+    if not fine:
+        return [r for r in coarse if r["t"] >= since]
+    start = fine[0]["t"]  # 1m history is ~5h; fill any older gap with coarser candles
+    gap = [r for r in coarse if r["t"] >= since and r["t"] + 300 <= start]
+    return gap + [r for r in fine if r["t"] >= since]
 
 
 def _stats(acct):

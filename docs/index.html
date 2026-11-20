@@ -40,6 +40,7 @@ td .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-rig
 .chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:12px;font-family:"JetBrains Mono",monospace}
 .thesis{color:var(--muted);font-size:13px}
 .scen td:nth-child(3),.scen th:nth-child(3){text-align:left}
+.mk td:nth-child(2),.mk th:nth-child(2){text-align:right;min-width:0}
 .pos{padding:1px 0;font-size:13px}
 .why{color:var(--accent);font-size:12.5px;margin-top:3px}
 .chartbox{position:relative;height:380px}
@@ -75,8 +76,8 @@ summary{cursor:pointer;font-weight:500}
   </div>
 
   <div class="card">
-    <h2>CRT: Nasdaq (NQ) forward test</h2>
-    <p class="foot" style="margin-top:-6px">The CRT model that survived out-of-sample backtesting, now tracked live on real NQ futures data every hour. Only trades entered after the forward test started count. Results in R after MNQ costs, and as a $100 account risking 2% per trade. <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/REPORT.md">Research report</a> · <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/crt_indicator.pine">TradingView indicator</a></p>
+    <h2>CRT forward test: 13 markets, 3 models</h2>
+    <p class="foot" style="margin-top:-6px">The CRT models that survived out-of-sample backtesting on Nasdaq, now run every hour on live data from index futures, gold, oil, FX and crypto. Only trades entered after tracking started count. Results in R after each market's realistic costs, and as a $100 account risking 2% per trade. <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/REPORT.md">Research report</a> · <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/crt_indicator.pine">TradingView indicator</a></p>
     <div id="crtfwd"></div>
   </div>
 
@@ -192,14 +193,23 @@ function render(s){
 
   // CRT forward test
   const fw=s.crt_forward;
-  if(fw&&fw.models){
-    const fr=x=>`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${x.toFixed(2)}R</span>`;
-    const all=Object.entries(fw.models).flatMap(([name,m])=>Object.values(m.trades||{}).map(x=>({...x,model:name}))).sort((a,b)=>b.entry_t-a.entry_t);
-    $("#crtfwd").innerHTML=`<div class="tbl"><table><thead><tr><th>#</th><th>Model (NQ, MNQ costs)</th><th>Trades</th><th>Won</th><th>Net R</th><th>$100 @ 2% risk</th></tr></thead><tbody>${
-      Object.entries(fw.models).map(([name,m],i)=>`<tr><td>${i+1}</td><td>${name}</td><td>${m.n||0}</td><td>${m.wins||0}</td><td>${fr(m.net_r||0)}</td><td>${usd(m.equity||100)}</td></tr>`).join("")}</tbody></table></div>
-      ${fw.error?`<p class="err">Data issue last run: ${fw.error}</p>`:""}
-      <p class="foot">Tracking since ${fmtT(fw.start)}${fw.last_price?` · NQ last ${Math.round(fw.last_price).toLocaleString()} at ${fmtT(fw.last_t)}`:""}. Backtest expectation: about +0.1R per trade. A month of forward trades is the real test.</p>
-      ${all.length?`<div class="tbl"><table><thead><tr><th>Entry</th><th>Model</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${all.slice(0,30).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td class="thesis">${x.model.split(",")[0]}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${x.entry.toFixed(2)}</td><td>${x.stop.toFixed(2)}</td><td>${x.target.toFixed(2)}</td><td>${x.exit.toFixed(2)} <span class="thesis">${x.reason}</span></td><td>${fr(x.r)}</td></tr>`).join("")}</tbody></table></div>`:'<p class="foot">No forward trades yet. NQ trades nearly 24h on weekdays and is closed on weekends.</p>'}`;
+  if(fw&&fw.by_model){
+    const fr=x=>x===null||x===undefined?"—":`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${x.toFixed(2)}R</span>`;
+    const order=fw.models_order||Object.keys(fw.by_model);
+    const SHORT=["Main 2R","NY hours 2R","50% limit 3R"];
+    const short=n=>SHORT[order.indexOf(n)]||n;
+    const trades=Object.values(fw.trades||{}).sort((a,b)=>b.entry_t-a.entry_t);
+    const dp=(x,ref)=>{const d=Math.abs(ref)>=10?2:Math.abs(ref)>=1?4:5;return x.toFixed(d)};
+    const nerr=Object.keys(fw.errors||{}).length;
+    $("#crtfwd").innerHTML=`<h3 style="font-size:14px;margin:4px 0 8px">By model (all ${Object.keys(fw.by_market).length} markets combined)</h3>
+      <div class="tbl"><table><thead><tr><th>#</th><th>Model</th><th>Trades</th><th>Win rate</th><th>Expectancy</th><th>Net R</th><th>$100 @ 2% risk</th></tr></thead><tbody>${
+      order.map((m,i)=>{const v=fw.by_model[m]||{};return `<tr><td>${i+1}</td><td>${m}</td><td>${v.n||0}</td><td>${v.n?(v.wins/v.n*100).toFixed(0)+"%":"—"}</td><td>${fr(v.exp_r)}</td><td>${fr(v.net_r||0)}</td><td>${usd(v.equity||100)}</td></tr>`}).join("")}</tbody></table></div>
+      <p class="foot">Backtest expectation for the first two models: about +0.1 to +0.2R per trade. Worse than about -0.3R after 100+ trades would mean the edge isn't real.</p>
+      <h3 style="font-size:14px;margin:14px 0 8px">By market (net R and trades per model)</h3>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Market</th>${order.map(m=>`<th>${short(m)}</th>`).join("")}<th>Total</th><th>Last price</th></tr></thead><tbody>${
+      Object.entries(fw.by_market).map(([sym,v])=>`<tr><td style="text-align:left">${v.label}${(fw.errors||{})[sym]?' <span class="err">data error</span>':""}</td>${order.map(m=>{const x=v.models[m]||{};return `<td>${x.n?`${fr(x.net_r)} <span class="thesis">${x.n}</span>`:'<span class="thesis">0</span>'}</td>`}).join("")}<td>${v.n?fr(v.net_r):"—"}</td><td>${fw.last&&fw.last[sym]?dp(fw.last[sym].price,fw.last[sym].price):"—"}</td></tr>`).join("")}</tbody></table></div>
+      <p class="foot">Forward test since ${fmtT(fw.start)} (markets and models added later count from when they were added) · updated ${fmtT(fw.updated)}${nerr?` · ${nerr} market(s) had a data error this run`:""}. Futures and FX close on weekends; crypto trades 24/7.</p>
+      ${trades.length?`<h3 style="font-size:14px;margin:14px 0 8px">Latest forward trades</h3><div class="tbl"><table><thead><tr><th>Entry</th><th>Market</th><th>Model</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${trades.slice(0,40).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td>${(fw.by_market[x.market]||{}).label||x.market}</td><td class="thesis">${short(x.model)}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${dp(x.entry,x.entry)}</td><td>${dp(x.stop,x.entry)}</td><td>${dp(x.target,x.entry)}</td><td>${dp(x.exit,x.entry)} <span class="thesis">${x.reason}</span></td><td>${fr(x.r)}</td></tr>`).join("")}</tbody></table></div>`:""}`;
   }
 
   // Decision scorecard
