@@ -1,0 +1,219 @@
+//@version=6
+// CRT Pro: Candle Range Theory on 15M / 30M / 1H, non-repainting.
+// Rules mirror bot/crt.py in github.com/Ruslex1234/testing_crypto_trends (see docs/crt/REPORT.md).
+//
+// Range candle (C0) = previous closed CRT candle. Sweep candle (C1) = the next closed CRT candle that
+// trades beyond C0's high or low and CLOSES back inside C0. A close beyond C0 is a breakout, not a sweep.
+// Aggressive entry: at the open after the sweep candle closes.
+// Confirmed entry: wait (on the chart timeframe) for a displacement candle that closes beyond the
+// sweep candle's opposite extreme (MSS), then a limit at the FVG it leaves or at the CRT 50% level.
+// Signals are evaluated only on CLOSED chart bars; CRT candles come from request.security with
+// [1] offsets + lookahead_on, the standard non-repainting pattern.
+indicator("CRT Pro (15M / 30M / 1H)", overlay = true, max_lines_count = 400, max_labels_count = 300)
+
+// ---------------- inputs ----------------
+grpTF  = "CRT timeframes"
+use15  = input.bool(true,  "15M CRT", group = grpTF, inline = "a")
+use30  = input.bool(true,  "30M CRT", group = grpTF, inline = "a")
+use60  = input.bool(true,  "1H CRT",  group = grpTF, inline = "a")
+
+grpM     = "Model"
+entryMdl = input.string("Aggressive", "Entry model", options = ["Aggressive", "FVG", "Equilibrium"], group = grpM)
+stopMdl  = input.string("Sweep", "Stop placement", options = ["Sweep", "Rejection", "ATR"], group = grpM)
+tgtMdl   = input.string("2R", "Target", options = ["Range", "2R", "3R", "4R", "5R"], group = grpM)
+allowL   = input.bool(true, "Longs", group = grpM, inline = "d")
+allowS   = input.bool(true, "Shorts", group = grpM, inline = "d")
+rangeAtr = input.float(0.6, "Min range size (x CRT ATR)", minval = 0, step = 0.1, group = grpM)
+dispAtr  = input.float(0.6, "Displacement body (x chart ATR)", minval = 0, step = 0.1, group = grpM)
+bufAtr   = input.float(0.1, "Stop buffer (x CRT ATR)", minval = 0, step = 0.05, group = grpM)
+minRR    = input.float(1.5, "Min R:R to range opposite", minval = 0, step = 0.1, group = grpM)
+waitBars = input.int(24, "Max chart bars to wait for MSS / fill", minval = 1, group = grpM)
+maxHold  = input.int(96, "Max chart bars in a trade", minval = 1, group = grpM)
+
+grpF   = "Filters"
+useKZ  = input.bool(false, "Only London 02:00-05:00 / NY 08:30-11:00 ET", group = grpF)
+
+grpR     = "Risk (futures)"
+ptValue  = input.float(2.0, "Point value ($/pt): MNQ 2, NQ 20", group = grpR)
+acctRisk = input.float(100.0, "Risk per trade ($)", minval = 0, group = grpR)
+
+grpV     = "Visuals"
+colL     = input.color(color.new(#0f8a5f, 0), "Long", group = grpV, inline = "c")
+colS     = input.color(color.new(#c4362f, 0), "Short", group = grpV, inline = "c")
+colRng   = input.color(color.new(#8a909c, 30), "Range", group = grpV, inline = "c")
+showRng  = input.bool(true, "Draw CRT ranges on signals", group = grpV)
+showTbl  = input.bool(true, "Show statistics table", group = grpV)
+
+chartAtr = ta.atr(14)
+nyHour   = hour(time, "America/New_York") + minute(time, "America/New_York") / 60.0
+inKZ     = (nyHour >= 2 and nyHour < 5) or (nyHour >= 8.5 and nyHour < 11)
+
+// ---------------- state per timeframe ----------------
+type CRT
+    string tf
+    int    phase = 0      // 0 idle, 1 waiting MSS, 2 waiting fill, 3 in trade
+    int    dir = 0
+    float  rH = na
+    float  rL = na
+    float  ext = na
+    float  struct = na
+    float  rejHi = na
+    float  rejLo = na
+    float  crtAtr = na
+    int    since = 0
+    float  entry = na
+    float  sl = na
+    float  tp = na
+    int    trades = 0
+    int    wins = 0
+    float  sumR = 0.0
+    float  grossW = 0.0
+    float  grossL = 0.0
+
+var CRT s15 = CRT.new("15")
+var CRT s30 = CRT.new("30")
+var CRT s60 = CRT.new("60")
+
+f_levels(CRT s, float e) =>
+    float stop = switch stopMdl
+        "Sweep"     => s.ext - s.dir * bufAtr * s.crtAtr
+        "Rejection" => (s.dir == 1 ? s.rejLo : s.rejHi) - s.dir * bufAtr * s.crtAtr
+        => e - s.dir * 1.5 * s.crtAtr
+    float risk = (e - stop) * s.dir
+    float tgt = na
+    if risk > 0
+        if tgtMdl == "Range"
+            float opp = s.dir == 1 ? s.rH : s.rL
+            tgt := (opp - e) * s.dir >= minRR * risk ? opp : na
+        else
+            tgt := e + s.dir * str.tonumber(str.replace(tgtMdl, "R", "")) * risk
+    [stop, tgt, risk]
+
+f_open(CRT s, float e, string tfLabel) =>
+    [stop, tgt, risk] = f_levels(s, e)
+    if not na(tgt) and risk > 0
+        s.entry := e
+        s.sl := stop
+        s.tp := tgt
+        s.phase := 3
+        s.since := 0
+        color c = s.dir == 1 ? colL : colS
+        int contracts = math.max(0, int(math.floor(acctRisk / (risk * ptValue))))
+        string txt = (s.dir == 1 ? "LONG " : "SHORT ") + tfLabel + "\nE " + str.tostring(e, format.mintick) + "  SL " + str.tostring(stop, format.mintick) + "  TP " + str.tostring(tgt, format.mintick) + "\nRisk " + str.tostring(risk, "#.##") + " pts = $" + str.tostring(risk * ptValue, "#") + "/ct  · size " + str.tostring(contracts) + " ct  · RR " + str.tostring((tgt - e) * s.dir / risk, "#.#")
+        label.new(bar_index, s.dir == 1 ? low : high, txt, style = s.dir == 1 ? label.style_label_up : label.style_label_down, color = color.new(c, 10), textcolor = color.white, size = size.small)
+        line.new(bar_index, e, bar_index + 20, e, color = c, width = 2)
+        line.new(bar_index, stop, bar_index + 20, stop, color = colS, style = line.style_dashed)
+        line.new(bar_index, tgt, bar_index + 20, tgt, color = colL, style = line.style_dashed)
+        alert("CRT " + tfLabel + (s.dir == 1 ? " LONG" : " SHORT") + " @ " + str.tostring(e, format.mintick) + " SL " + str.tostring(stop, format.mintick) + " TP " + str.tostring(tgt, format.mintick), alert.freq_once_per_bar_close)
+    else
+        s.phase := 0
+    true
+
+f_close(CRT s, float px) =>
+    float r = (px - s.entry) * s.dir / ((s.entry - s.sl) * s.dir)
+    s.trades := s.trades + 1
+    s.sumR := s.sumR + r
+    if r > 0
+        s.wins := s.wins + 1
+        s.grossW := s.grossW + r
+    else
+        s.grossL := s.grossL - r
+    s.phase := 0
+    true
+
+f_process(CRT s, bool enabled, string tfLabel, simple string tf) =>
+    // last two CLOSED CRT candles, non-repainting
+    [h1, l1, c1, h2, l2, t1, a1] = request.security(syminfo.tickerid, tf, [high[1], low[1], close[1], high[2], low[2], time[1], ta.atr(14)[1]], lookahead = barmerge.lookahead_on)
+    bool tfOk = timeframe.in_seconds() <= timeframe.in_seconds(tf)
+    bool newCrt = ta.change(t1) != 0
+    if enabled and tfOk and barstate.isconfirmed
+        // manage open trade first
+        if s.phase == 3
+            s.since := s.since + 1
+            bool hitSL = s.dir == 1 ? low <= s.sl : high >= s.sl
+            bool hitTP = s.dir == 1 ? high >= s.tp : low <= s.tp
+            if hitSL
+                f_close(s, s.sl)
+            else if hitTP
+                f_close(s, s.tp)
+            else if s.since >= maxHold
+                f_close(s, close)
+        // pending confirmation / fill
+        else if s.phase == 1
+            s.since := s.since + 1
+            bool invalid = s.dir == 1 ? low < s.ext : high > s.ext
+            bool body = (close - open) * s.dir >= dispAtr * chartAtr
+            bool mss = s.dir == 1 ? close > s.struct : close < s.struct
+            if invalid or s.since > waitBars
+                s.phase := 0
+            else if body and mss
+                float e = na
+                if entryMdl == "FVG"
+                    bool gap = s.dir == 1 ? low > high[2] : high < low[2]
+                    e := gap ? (s.dir == 1 ? (low + high[2]) / 2 : (high + low[2]) / 2) : na
+                else
+                    float eq = (s.rH + s.rL) / 2
+                    e := (eq - close) * s.dir < 0 ? eq : na
+                if na(e)
+                    s.phase := 0
+                else
+                    s.entry := e
+                    s.phase := 2
+                    s.since := 0
+        else if s.phase == 2
+            s.since := s.since + 1
+            bool filled = s.dir == 1 ? low <= s.entry : high >= s.entry
+            bool invalid = s.dir == 1 ? low < s.ext : high > s.ext
+            if s.since > waitBars
+                s.phase := 0
+            else if filled and not invalid
+                f_open(s, s.entry, tfLabel)
+            else if invalid
+                s.phase := 0
+        // new CRT sweep signal (classic 2-candle CRT)
+        if newCrt and s.phase == 0 and not na(h2) and (h2 - l2) >= rangeAtr * a1 and (not useKZ or inKZ)
+            bool bull = allowL and l1 < l2 and c1 > l2 and c1 < h2
+            bool bear = allowS and h1 > h2 and c1 < h2 and c1 > l2
+            if bull or bear
+                s.dir := bull ? 1 : -1
+                s.rH := h2
+                s.rL := l2
+                s.ext := bull ? l1 : h1
+                s.struct := bull ? h1 : l1
+                s.rejHi := h1
+                s.rejLo := l1
+                s.crtAtr := a1
+                s.since := 0
+                if showRng
+                    color c = bull ? colL : colS
+                    line.new(bar_index - 1, h2, bar_index + 10, h2, color = colRng)
+                    line.new(bar_index - 1, l2, bar_index + 10, l2, color = colRng)
+                    line.new(bar_index - 1, (h2 + l2) / 2, bar_index + 10, (h2 + l2) / 2, color = colRng, style = line.style_dotted)
+                    label.new(bar_index, bull ? l1 : h1, tfLabel + (bull ? " sweep ↑" : " sweep ↓"), style = bull ? label.style_label_up : label.style_label_down, color = color.new(c, 70), textcolor = c, size = size.tiny)
+                if entryMdl == "Aggressive"
+                    f_open(s, open, tfLabel)
+                else
+                    s.phase := 1
+    true
+
+f_process(s15, use15, "15M", "15")
+f_process(s30, use30, "30M", "30")
+f_process(s60, use60, "1H", "60")
+
+// ---------------- statistics (gross R, no costs) ----------------
+var table tbl = table.new(position.top_right, 5, 4, bgcolor = color.new(color.black, 80), border_width = 1)
+f_row(int r, string name, CRT s) =>
+    table.cell(tbl, 0, r, name, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 1, r, str.tostring(s.trades), text_color = color.white, text_size = size.small)
+    table.cell(tbl, 2, r, s.trades > 0 ? str.tostring(100.0 * s.wins / s.trades, "#") + "%" : "-", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 3, r, s.trades > 0 ? str.tostring(s.sumR / s.trades, "#.##") + "R" : "-", text_color = s.sumR >= 0 ? colL : colS, text_size = size.small)
+    table.cell(tbl, 4, r, s.grossL > 0 ? str.tostring(s.grossW / s.grossL, "#.##") : "-", text_color = color.white, text_size = size.small)
+if showTbl and barstate.islast
+    table.cell(tbl, 0, 0, "CRT", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 1, 0, "Trades", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 2, 0, "Win", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 3, 0, "Exp", text_color = color.white, text_size = size.small)
+    table.cell(tbl, 4, 0, "PF", text_color = color.white, text_size = size.small)
+    f_row(1, "15M", s15)
+    f_row(2, "30M", s30)
+    f_row(3, "1H", s60)
