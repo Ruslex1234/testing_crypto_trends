@@ -124,6 +124,33 @@ def pick(results, tf, min_n=8, entries=None):
     return best
 
 
+def pick_robust(results, tf, min_train=20, min_val=10):
+    """Pre-registered selection rule (uses NO test data): among configs with enough trades,
+    maximise the WORSE of train and validation expectancy. Rewards consistency, not a lucky peak."""
+    best, score = None, None
+    for k, r in results.items():
+        if not k.startswith(f"{tf}m|"):
+            continue
+        tr, va = r["train"], r["val"]
+        if tr.get("n", 0) < min_train or va.get("n", 0) < min_val:
+            continue
+        sc = min(tr["expectancy_r"], va["expectancy_r"])
+        if score is None or sc > score:
+            best, score = k, sc
+    return best
+
+
+def robustness(results, tf):
+    rows = [v for k, v in results.items() if k.startswith(f"{tf}m|")]
+    testable = [v for v in rows if v["test"].get("n", 0) >= 5]
+    passed = [v for v in testable if v["train"].get("n", 0) >= 5 and v["train"]["expectancy_r"] > 0
+              and v["val"].get("n", 0) >= 3 and v["val"]["expectancy_r"] > 0]
+    return {"testable": len(testable),
+            "test_positive": sum(1 for v in testable if v["test"]["expectancy_r"] > 0),
+            "passed_train_val": len(passed),
+            "passed_and_test_positive": sum(1 for v in passed if v["test"]["expectancy_r"] > 0)}
+
+
 def cfg_from(k, **over):
     tf, e, s, t, f, b = k.split("|")
     c = crt.Config(tf=int(tf[:-1]), entry=e, stop=s, target=t,
@@ -141,7 +168,9 @@ def study(name, base, cost, tfs=(15, 30, 60), longs=True, shorts=True):
     for tf, e, s, t in itertools.product(tfs, ENTRIES, STOPS, TARGETS):
         cfg = crt.Config(tf=tf, entry=e, stop=s, target=t, longs=longs, shorts=shorts)
         results[key(cfg)], _ = evaluate(base, cfg, cost, ctx, bounds)
-    chosen = {tf: pick(results, tf) for tf in tfs}
+    train_best = {tf: pick(results, tf) for tf in tfs}
+    chosen = {tf: pick_robust(results, tf) or train_best[tf] for tf in tfs}
+    robust = {tf: robustness(results, tf) for tf in tfs}
     aggr_vs_conf = {tf: {"aggressive": pick(results, tf, entries=["aggr"]),
                          "confirmed": pick(results, tf, entries=["fvg", "eq", "ob"])} for tf in tfs}
     filt, mtf, sessions = {}, {}, {}
@@ -171,7 +200,7 @@ def study(name, base, cost, tfs=(15, 30, 60), longs=True, shorts=True):
             mtf[label] = {"config": key(c), **evaluate(base, c, cost, ctx, bounds)[0]}
     span = (base[0]["t"], base[-1]["t"])
     return {"name": name, "span": span, "bounds": bounds, "base_candles": len(base),
-            "grid": results, "chosen": chosen, "aggr_vs_conf": aggr_vs_conf,
+            "grid": results, "chosen": chosen, "train_best": train_best, "robust": robust, "aggr_vs_conf": aggr_vs_conf,
             "filters": filt, "mtf": mtf, "sessions": sessions}
 
 
@@ -184,7 +213,8 @@ def fmt(x, pct=False, d=2):
 def md_report(studies):
     L = ["# CRT research results (auto-generated)", "",
          f"Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC. All figures are **R multiples after costs** "
-         "(1R = the risk to the stop). Selection uses the TRAIN period only; VAL and TEST are untouched.", ""]
+         "(1R = the risk to the stop). Chosen config = max of min(train, validation) expectancy "
+         "(n train >= 20, n val >= 10); TEST data never influences the choice.", ""]
     for st in studies:
         a, b = st["span"]
         L += [f"## {st['name']}",
@@ -193,7 +223,7 @@ def md_report(studies):
               "| Metric | " + " | ".join(f"CRT {tf}M" if tf < 60 else f"CRT {tf // 60}H" for tf in st["chosen"]) + " |",
               "|---|" + "---|" * len(st["chosen"])]
         rows = {"Chosen config (train)": [], "Train n / exp": [], "Val n / exp": [], "TEST n / exp": [],
-                "Win rate (all)": [], "Profit factor (all)": [], "Expectancy R (all)": [],
+                "Test win rate / PF": [], "Win rate (all)": [], "Profit factor (all)": [], "Expectancy R (all)": [],
                 "Avg winner R": [], "Max DD R (all)": [], "Max losing streak": [], "Trades/day": [],
                 "Avg stop (pts)": [], "Best session (n≥3)": [], "Long exp / Short exp": []}
         for tf, k in st["chosen"].items():
@@ -209,6 +239,8 @@ def md_report(studies):
             for lab, sp in (("Train n / exp", "train"), ("Val n / exp", "val"), ("TEST n / exp", "test")):
                 x = r[sp]
                 rows[lab].append(f"{x.get('n', 0)} / {fmt(x.get('expectancy_r'))}")
+            te = r["test"]
+            rows["Test win rate / PF"].append(f"{fmt(te.get('win_rate'), True)} / {fmt(te.get('profit_factor'))}")
             rows["Win rate (all)"].append(fmt(al.get("win_rate"), True))
             rows["Profit factor (all)"].append(fmt(al.get("profit_factor")))
             rows["Expectancy R (all)"].append(fmt(al.get("expectancy_r")))
@@ -221,6 +253,13 @@ def md_report(studies):
             rows["Long exp / Short exp"].append(f"{fmt(al['long']['exp'])} / {fmt(al['short']['exp'])}")
         for lab, v in rows.items():
             L.append(f"| {lab} | " + " | ".join(v) + " |")
+        L += ["", "**Robustness across all configs** (positive in train AND val, then checked on test):", ""]
+        for tf, rb in st["robust"].items():
+            tb = st["train_best"][tf]
+            tbt = st["grid"][tb]["test"] if tb else {}
+            L.append(f"- {tf}M: {rb['test_positive']}/{rb['testable']} configs positive in test; "
+                     f"{rb['passed_train_val']} passed train+val, {rb['passed_and_test_positive']} of those positive in test. "
+                     f"Naive train-best `{' '.join(tb.split('|')[1:4]) if tb else '-'}` test exp {fmt(tbt.get('expectancy_r'))} (n {tbt.get('n', 0)})")
         L += ["", "**Aggressive vs confirmed (best of each on train → val / test expectancy):**", ""]
         for tf, d in st["aggr_vs_conf"].items():
             parts = []

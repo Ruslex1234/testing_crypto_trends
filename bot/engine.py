@@ -203,6 +203,8 @@ def main():
         print("No BTC data, aborting without changes:", errors)
         sys.exit(1)
     state = step(load_state(), md, int(time.time()), errors, sources)
+    import crt_forward
+    crt_forward.update(state, int(time.time()))
     save_state(state)
     for a in state["accounts"].values():
         print(f"{a['name']:<42} ${a.get('equity', 0):8.2f}  trades={len(a['trades'])}"

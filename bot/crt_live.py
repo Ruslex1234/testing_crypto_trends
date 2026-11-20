@@ -11,8 +11,10 @@ docs/crt/REPORT.md); change LIVE_CFG to switch.
 """
 import crt
 
-LIVE_CFG = crt.Config(tf=60, entry="aggr", stop="sweep", target="2R", longs=True, shorts=False,
-                      name="CRT 1H, aggressive entry, stop beyond sweep, 2R target")
+# 4H: the only CRT timeframe whose BTC ranges clear retail spot fees (costs <= 0.25R).
+# Same structure as the NQ model that survived out-of-sample testing (aggressive, sweep stop, 2R).
+LIVE_CFG = crt.Config(tf=240, entry="aggr", stop="sweep", target="2R", longs=True, shorts=False,
+                      name="CRT 4H, aggressive entry, stop beyond sweep, 2R target")
 RISK_PCT = 0.02
 
 
