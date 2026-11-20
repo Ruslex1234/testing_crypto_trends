@@ -1,0 +1,36 @@
+name: candle-archive
+
+# Daily: saves every complete UTC day of 1-minute candles for all tracked markets into
+# data/candles/1m/, building an intraday history beyond what free APIs keep.
+on:
+  schedule:
+    - cron: "41 0 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: candle-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Archive 1m candles
+        run: python3 research/archive.py
+      - name: Commit
+        run: |
+          git config user.name "paper-trader-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/candles
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -m "candle archive $(date -u +'%Y-%m-%d')"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

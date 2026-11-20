@@ -44,6 +44,31 @@ def yahoo(symbol, interval, rng):
     return rows
 
 
+def archive_5m(symbol):
+    """5 minute candles rebuilt from our own 1m archive (data/candles/1m), oldest first."""
+    import csv
+    import glob
+    import gzip
+    safe = symbol.replace("=", "_").replace("^", "")
+    rows = []
+    for p in sorted(glob.glob(os.path.join(ROOT, "data", "candles", "1m", safe, "*", "*.csv.gz"))):
+        with gzip.open(p, "rt") as f:
+            for r in csv.DictReader(f):
+                rows.append({"t": int(r["t"]), "o": float(r["o"]), "h": float(r["h"]),
+                             "l": float(r["l"]), "c": float(r["c"]), "v": float(r["v"])})
+    return [{k: v for k, v in b.items() if k != "n"} for b in crt.resample(rows, 5)]
+
+
+def with_archive(symbol, rows):
+    """Merge archived history (older) with freshly downloaded candles (preferred where both exist)."""
+    merged = {b["t"]: b for b in archive_5m(symbol)}
+    merged.update({b["t"]: b for b in rows})
+    out = [merged[t] for t in sorted(merged)]
+    if len(out) > len(rows):
+        print(f"{symbol}: archive extends history to {len(out)} candles (download had {len(rows)})")
+    return out
+
+
 def coinbase_5m(product, days, gran=300):
     end = int(time.time()) // gran * gran
     start = end - days * 86400
@@ -335,7 +360,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     studies, errors = [], {}
     try:
-        nq5 = yahoo("NQ=F", "5m", "60d")
+        nq5 = with_archive("NQ=F", yahoo("NQ=F", "5m", "60d"))
         studies.append(study("NQ futures, 5m data (MNQ costs)", nq5, cost_mnq))
         studies.append(study("NQ futures, 5m data (NQ costs)", nq5, cost_nq))
     except Exception as e:  # noqa: BLE001
