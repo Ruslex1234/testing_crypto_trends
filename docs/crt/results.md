@@ -1,6 +1,6 @@
 # CRT research results (auto-generated)
 
-Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R = the risk to the stop). Chosen config = max of min(train, validation) expectancy (n train >= 20, n val >= 10); TEST data never influences the choice.
+Generated 2026-11-20 00:11 UTC. All figures are **R multiples after costs** (1R = the risk to the stop). Chosen config = max of min(train, validation) expectancy (n train >= 20, n val >= 10); TEST data never influences the choice.
 
 ## NQ futures, 5m data (MNQ costs)
 2026-09-11 to 2026-11-19, 13675 base candles. Split 50/25/25 train/val/test.
@@ -66,6 +66,31 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 - B: 1H bias + 30M exec `30m|eq|ob|3R|-|bias60`: all 28 / 0.15, test -0.31 (n 7)
 - C: 30M bias + 15M exec `15m|aggr|atr|5R|-|bias30`: all 206 / -0.00, test -0.08 (n 60)
 
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `15m|aggr|sweep|2R|-|bias0` train -0.06 (n 377), val -0.09 (n 178), test 0.11 (n 194)
+  - sessions: Asia/overnight 0.02 (n 232), London -0.02 (n 181), NY afternoon -0.11 (n 75), NY midday -0.06 (n 100), NY open -0.14 (n 60), NY pre-open 0.04 (n 101)
+  - filters (all exp / test exp): pd_level -0.21/-0.11 (n 248), session_level -0.19/-0.03 (n 483), vwap 0.07/0.07 (n 373), daily_open -0.14/0.06 (n 515), killzone -0.00/-0.00 (n 249), high_vol -0.06/-0.03 (n 370), low_vol -0.10/0.16 (n 417)
+  - MTF: 60m bias -0.12/0.10 (n 359), 30m bias -0.02/0.14 (n 370)
+- `15m|aggr|sweep|3R|-|bias0` train -0.06 (n 305), val 0.09 (n 153), test 0.12 (n 139)
+  - sessions: Asia/overnight 0.11 (n 178), London -0.05 (n 148), NY afternoon 0.04 (n 60), NY midday 0.08 (n 84), NY open 0.08 (n 52), NY pre-open -0.18 (n 75)
+  - filters (all exp / test exp): pd_level -0.17/-0.09 (n 239), session_level -0.17/-0.02 (n 439), vwap 0.04/-0.09 (n 330), daily_open -0.14/0.02 (n 465), killzone -0.08/-0.15 (n 222), high_vol 0.12/0.28 (n 319), low_vol -0.25/-0.21 (n 345)
+  - MTF: 60m bias -0.12/0.01 (n 337), 30m bias 0.00/0.12 (n 337)
+- `30m|aggr|sweep|2R|-|bias0` train 0.12 (n 178), val 0.14 (n 82), test 0.11 (n 119)
+  - sessions: Asia/overnight -0.04 (n 105), London 0.10 (n 93), NY afternoon 0.29 (n 47), NY midday 0.31 (n 53), NY open 0.20 (n 34), NY pre-open 0.11 (n 47)
+  - filters (all exp / test exp): pd_level 0.04/0.21 (n 146), session_level 0.08/0.20 (n 274), vwap 0.16/-0.00 (n 158), daily_open -0.02/0.04 (n 281), killzone 0.05/0.06 (n 133), high_vol 0.15/0.18 (n 184), low_vol 0.01/0.09 (n 230)
+  - MTF: 60m bias -0.04/-0.10 (n 194)
+- `30m|aggr|sweep|3R|-|bias0` train 0.22 (n 141), val 0.40 (n 72), test 0.08 (n 99)
+  - sessions: Asia/overnight 0.11 (n 83), London 0.05 (n 74), NY afternoon 0.42 (n 38), NY midday 0.49 (n 50), NY open 0.23 (n 31), NY pre-open 0.19 (n 36)
+  - filters (all exp / test exp): pd_level -0.02/0.08 (n 132), session_level 0.14/0.24 (n 238), vwap 0.15/-0.27 (n 147), daily_open 0.07/0.08 (n 234), killzone -0.03/0.06 (n 124), high_vol 0.31/0.15 (n 151), low_vol 0.01/0.06 (n 198)
+  - MTF: 60m bias -0.06/-0.01 (n 174)
+- `60m|aggr|sweep|2R|-|bias0` train -0.06 (n 101), val -0.22 (n 45), test 0.37 (n 42)
+  - sessions: Asia/overnight 0.27 (n 51), London -0.11 (n 46), NY afternoon -0.35 (n 27), NY midday 0.24 (n 36), NY open -1.02 (n 7), NY pre-open -0.02 (n 21)
+  - filters (all exp / test exp): pd_level 0.01/0.32 (n 87), session_level -0.01/0.27 (n 153), vwap -0.02/0.19 (n 70), daily_open 0.11/0.67 (n 142), killzone -0.31/-0.72 (n 59), high_vol 0.03/0.41 (n 103), low_vol 0.00/0.24 (n 93)
+- `60m|aggr|sweep|3R|-|bias0` train 0.19 (n 89), val -0.36 (n 35), test 0.39 (n 33)
+  - sessions: Asia/overnight 0.34 (n 46), London -0.25 (n 36), NY afternoon -0.21 (n 23), NY midday 0.70 (n 33), NY open -1.02 (n 5), NY pre-open -0.17 (n 14)
+  - filters (all exp / test exp): pd_level 0.14/0.53 (n 82), session_level 0.13/0.61 (n 134), vwap -0.05/-0.15 (n 66), daily_open 0.14/0.78 (n 126), killzone -0.21/-1.02 (n 59), high_vol 0.13/0.24 (n 92), low_vol 0.14/0.58 (n 82)
+
 ## NQ futures, 5m data (NQ costs)
 2026-09-11 to 2026-11-19, 13675 base candles. Split 50/25/25 train/val/test.
 
@@ -130,8 +155,33 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 - B: 1H bias + 30M exec `30m|eq|ob|3R|-|bias60`: all 28 / 0.16, test -0.31 (n 7)
 - C: 30M bias + 15M exec `15m|aggr|atr|5R|-|bias30`: all 206 / 0.00, test -0.08 (n 60)
 
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `15m|aggr|sweep|2R|-|bias0` train -0.04 (n 377), val -0.07 (n 178), test 0.12 (n 194)
+  - sessions: Asia/overnight 0.04 (n 232), London -0.00 (n 181), NY afternoon -0.09 (n 75), NY midday -0.05 (n 100), NY open -0.13 (n 60), NY pre-open 0.05 (n 101)
+  - filters (all exp / test exp): pd_level -0.20/-0.10 (n 248), session_level -0.17/-0.02 (n 484), vwap 0.08/0.08 (n 373), daily_open -0.13/0.07 (n 516), killzone 0.01/0.01 (n 249), high_vol -0.05/-0.02 (n 370), low_vol -0.08/0.17 (n 417)
+  - MTF: 60m bias -0.11/0.12 (n 359), 30m bias -0.01/0.15 (n 370)
+- `15m|aggr|sweep|3R|-|bias0` train -0.04 (n 305), val 0.11 (n 153), test 0.13 (n 139)
+  - sessions: Asia/overnight 0.13 (n 178), London -0.03 (n 148), NY afternoon 0.05 (n 60), NY midday 0.09 (n 84), NY open 0.09 (n 52), NY pre-open -0.16 (n 75)
+  - filters (all exp / test exp): pd_level -0.16/-0.08 (n 239), session_level -0.16/-0.01 (n 440), vwap 0.05/-0.08 (n 330), daily_open -0.13/0.03 (n 466), killzone -0.06/-0.14 (n 222), high_vol 0.13/0.29 (n 319), low_vol -0.23/-0.20 (n 345)
+  - MTF: 60m bias -0.10/0.02 (n 337), 30m bias 0.02/0.13 (n 337)
+- `30m|aggr|sweep|2R|-|bias0` train 0.14 (n 178), val 0.15 (n 82), test 0.12 (n 119)
+  - sessions: Asia/overnight -0.03 (n 105), London 0.11 (n 93), NY afternoon 0.30 (n 47), NY midday 0.32 (n 53), NY open 0.21 (n 34), NY pre-open 0.12 (n 47)
+  - filters (all exp / test exp): pd_level 0.05/0.22 (n 146), session_level 0.09/0.21 (n 274), vwap 0.17/0.00 (n 158), daily_open -0.01/0.05 (n 281), killzone 0.06/0.07 (n 133), high_vol 0.16/0.19 (n 184), low_vol 0.02/0.10 (n 230)
+  - MTF: 60m bias -0.03/-0.10 (n 194)
+- `30m|aggr|sweep|3R|-|bias0` train 0.23 (n 141), val 0.41 (n 72), test 0.09 (n 99)
+  - sessions: Asia/overnight 0.12 (n 83), London 0.06 (n 74), NY afternoon 0.43 (n 38), NY midday 0.50 (n 50), NY open 0.24 (n 31), NY pre-open 0.20 (n 36)
+  - filters (all exp / test exp): pd_level -0.01/0.08 (n 132), session_level 0.15/0.25 (n 238), vwap 0.16/-0.26 (n 147), daily_open 0.08/0.09 (n 234), killzone -0.01/0.06 (n 124), high_vol 0.32/0.16 (n 151), low_vol 0.03/0.07 (n 198)
+  - MTF: 60m bias -0.05/0.00 (n 174)
+- `60m|aggr|sweep|2R|-|bias0` train -0.05 (n 101), val -0.21 (n 45), test 0.37 (n 42)
+  - sessions: Asia/overnight 0.28 (n 51), London -0.10 (n 46), NY afternoon -0.34 (n 27), NY midday 0.24 (n 36), NY open -1.01 (n 7), NY pre-open -0.01 (n 21)
+  - filters (all exp / test exp): pd_level 0.01/0.33 (n 87), session_level -0.00/0.28 (n 153), vwap -0.01/0.19 (n 70), daily_open 0.12/0.68 (n 142), killzone -0.30/-0.71 (n 59), high_vol 0.04/0.41 (n 103), low_vol 0.01/0.25 (n 93)
+- `60m|aggr|sweep|3R|-|bias0` train 0.20 (n 89), val -0.35 (n 35), test 0.39 (n 33)
+  - sessions: Asia/overnight 0.35 (n 46), London -0.24 (n 36), NY afternoon -0.21 (n 23), NY midday 0.70 (n 33), NY open -1.01 (n 5), NY pre-open -0.16 (n 14)
+  - filters (all exp / test exp): pd_level 0.14/0.53 (n 82), session_level 0.13/0.61 (n 134), vwap -0.05/-0.14 (n 66), daily_open 0.15/0.78 (n 126), killzone -0.20/-1.01 (n 59), high_vol 0.14/0.24 (n 92), low_vol 0.15/0.59 (n 82)
+
 ## NQ futures, 1H CRT on 2 years of hourly data (MNQ costs)
-2024-06-30 to 2026-11-19, 13713 base candles. Split 50/25/25 train/val/test.
+2024-06-30 to 2026-11-20, 13714 base candles. Split 50/25/25 train/val/test.
 
 | Metric | CRT 1H |
 |---|---|
@@ -171,6 +221,15 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 
 **Multi-timeframe:**
 
+
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `60m|aggr|sweep|2R|-|bias0` train -0.16 (n 971), val -0.18 (n 517), test -0.21 (n 567)
+  - sessions: Asia/overnight -0.10 (n 481), London -0.26 (n 413), NY afternoon -0.11 (n 306), NY midday -0.12 (n 424), NY open -0.22 (n 127), NY pre-open -0.33 (n 304)
+  - filters (all exp / test exp): pd_level -0.21/-0.23 (n 869), session_level -0.20/-0.23 (n 1680), vwap -0.12/-0.19 (n 822), daily_open -0.20/-0.21 (n 1470), killzone -0.21/-0.38 (n 611), high_vol -0.12/-0.10 (n 1068), low_vol -0.21/-0.30 (n 1197)
+- `60m|aggr|sweep|3R|-|bias0` train -0.11 (n 848), val -0.07 (n 435), test -0.13 (n 490)
+  - sessions: Asia/overnight -0.09 (n 412), London -0.18 (n 335), NY afternoon 0.02 (n 271), NY midday -0.08 (n 375), NY open -0.17 (n 118), NY pre-open -0.17 (n 262)
+  - filters (all exp / test exp): pd_level -0.16/-0.12 (n 840), session_level -0.15/-0.17 (n 1502), vwap -0.08/-0.18 (n 766), daily_open -0.13/-0.09 (n 1335), killzone -0.15/-0.29 (n 598), high_vol -0.05/-0.09 (n 953), low_vol -0.15/-0.15 (n 1066)
 
 ## BTC-USD spot, 5m data, retail fees, both directions
 2026-09-21 to 2026-11-20, 17280 base candles. Split 50/25/25 train/val/test.
@@ -213,6 +272,37 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 **Multi-timeframe:**
 
 
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `15m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0), 30m bias –/– (n 0)
+- `15m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0), 30m bias –/– (n 0)
+- `30m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0)
+- `30m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0)
+- `60m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+- `60m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+- `240m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test -1.20 (n 1)
+  - sessions: Asia/overnight -1.20 (n 1)
+  - filters (all exp / test exp): pd_level -1.20/-1.20 (n 1), session_level -1.20/-1.20 (n 1), vwap -1.20/-1.20 (n 1), daily_open –/– (n 0), killzone –/– (n 0), high_vol -1.20/-1.20 (n 1), low_vol –/– (n 0)
+- `240m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test -1.20 (n 1)
+  - sessions: Asia/overnight -1.20 (n 1)
+  - filters (all exp / test exp): pd_level -1.20/-1.20 (n 1), session_level -1.20/-1.20 (n 1), vwap -1.20/-1.20 (n 1), daily_open –/– (n 0), killzone –/– (n 0), high_vol -1.20/-1.20 (n 1), low_vol –/– (n 0)
+
 ## BTC-USD spot, 5m data, retail fees, LONG ONLY (what the $100 account can do)
 2026-09-21 to 2026-11-20, 17280 base candles. Split 50/25/25 train/val/test.
 
@@ -253,6 +343,37 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 
 **Multi-timeframe:**
 
+
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `15m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0), 30m bias –/– (n 0)
+- `15m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0), 30m bias –/– (n 0)
+- `30m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0)
+- `30m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+  - MTF: 60m bias –/– (n 0)
+- `60m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+- `60m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test – (n 0)
+  - sessions: 
+  - filters (all exp / test exp): pd_level –/– (n 0), session_level –/– (n 0), vwap –/– (n 0), daily_open –/– (n 0), killzone –/– (n 0), high_vol –/– (n 0), low_vol –/– (n 0)
+- `240m|aggr|sweep|2R|-|bias0` train – (n 0), val – (n 0), test -1.20 (n 1)
+  - sessions: Asia/overnight -1.20 (n 1)
+  - filters (all exp / test exp): pd_level -1.20/-1.20 (n 1), session_level -1.20/-1.20 (n 1), vwap -1.20/-1.20 (n 1), daily_open –/– (n 0), killzone –/– (n 0), high_vol -1.20/-1.20 (n 1), low_vol –/– (n 0)
+- `240m|aggr|sweep|3R|-|bias0` train – (n 0), val – (n 0), test -1.20 (n 1)
+  - sessions: Asia/overnight -1.20 (n 1)
+  - filters (all exp / test exp): pd_level -1.20/-1.20 (n 1), session_level -1.20/-1.20 (n 1), vwap -1.20/-1.20 (n 1), daily_open –/– (n 0), killzone –/– (n 0), high_vol -1.20/-1.20 (n 1), low_vol –/– (n 0)
 
 ## BTC-USD spot, 2 years of hourly data, LONG ONLY, 1H and 4H CRT
 2024-11-20 to 2026-11-19, 17510 base candles. Split 50/25/25 train/val/test.
@@ -297,3 +418,18 @@ Generated 2026-11-20 00:07 UTC. All figures are **R multiples after costs** (1R 
 
 **Multi-timeframe:**
 
+
+**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**
+
+- `60m|aggr|sweep|2R|-|bias0` train -0.45 (n 1), val 1.84 (n 1), test – (n 0)
+  - sessions: Asia/overnight 0.70 (n 2)
+  - filters (all exp / test exp): pd_level 0.70/– (n 2), session_level 1.84/– (n 1), vwap 1.84/– (n 1), daily_open 0.70/– (n 2), killzone –/– (n 0), high_vol 0.70/– (n 2), low_vol –/– (n 0)
+- `60m|aggr|sweep|3R|-|bias0` train -0.45 (n 1), val 1.16 (n 1), test – (n 0)
+  - sessions: Asia/overnight 0.36 (n 2)
+  - filters (all exp / test exp): pd_level 0.36/– (n 2), session_level 1.16/– (n 1), vwap 1.16/– (n 1), daily_open 0.36/– (n 2), killzone –/– (n 0), high_vol 0.36/– (n 2), low_vol –/– (n 0)
+- `240m|aggr|sweep|2R|-|bias0` train 0.52 (n 2), val -0.34 (n 2), test -1.19 (n 2)
+  - sessions: Asia/overnight -0.25 (n 4), NY afternoon -1.25 (n 1), NY midday 0.23 (n 1)
+  - filters (all exp / test exp): pd_level -0.34/-1.19 (n 6), session_level -0.34/-1.19 (n 6), vwap -0.34/-1.19 (n 6), daily_open -0.05/-1.19 (n 3), killzone –/– (n 0), high_vol -0.34/-1.19 (n 6), low_vol –/– (n 0)
+- `240m|aggr|sweep|3R|-|bias0` train 0.52 (n 2), val -0.34 (n 2), test -1.19 (n 2)
+  - sessions: Asia/overnight -0.25 (n 4), NY afternoon -1.25 (n 1), NY midday 0.23 (n 1)
+  - filters (all exp / test exp): pd_level -0.34/-1.19 (n 6), session_level -0.34/-1.19 (n 6), vwap -0.34/-1.19 (n 6), daily_open -0.05/-1.19 (n 3), killzone –/– (n 0), high_vol -0.34/-1.19 (n 6), low_vol –/– (n 0)
