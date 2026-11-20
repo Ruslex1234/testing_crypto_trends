@@ -345,6 +345,8 @@ def vol_target(md, memo):  # noqa: C901
     return w
 
 
+from crt_live import crt_btc, LIVE_CFG  # noqa: E402
+
 STRATEGIES = [
     # id, name, function, short thesis, assets used
     ("hodl_btc", "Buy & Hold BTC (benchmark)", hodl_btc,
@@ -367,4 +369,6 @@ STRATEGIES = [
      "Weekly rotation into the strongest coins; cash if nothing is rising.", None),
     ("grid_eth", "Grid trader (ETH ±10%)", grid_eth,
      "Profits from chop: buys every dip level, sells every rip level.", ["ETH"]),
+    ("crt_btc", "CRT (Candle Range Theory) on BTC", crt_btc,
+     "Sweep of a candle's range, rejection, then trade back through it. Resting orders.", ["BTC"]),
 ]

@@ -143,7 +143,8 @@ def step(state, md, now, errors=None, sources=None):
                 ntrades = len(acct["trades"])
                 journal.score_decisions(acct, prices, now)
                 journal.check_scenarios(acct, md, prev, prices, now)
-                hit = risk.check_stops(acct, md, prev, prices)
+                hit = ([] if getattr(fn, "broker", False)  # broker strategies own their stops
+                       else risk.check_stops(acct, md, prev, prices))
                 for a, fill in hit:  # stop loss: exit fully before the strategy speaks
                     _fill(acct, a, "sell", acct["holdings"][a] * fill * 1.0001, fill, now,
                           "stop loss")
@@ -155,12 +156,29 @@ def step(state, md, now, errors=None, sources=None):
                     if "tier" in memo:
                         memo["tier"] = 0
                 kwargs = {"now": now} if "now" in inspect.signature(fn).parameters else {}
-                target = dict(fn(md, memo, **kwargs))
-                for a, _ in hit:
-                    target.pop(a, None)
-                target = risk.apply_cooldown(acct, target, now)
-                rebalance(acct, target, prices, now)
-                risk.update_stops(acct, sid, md, prices)
+                if getattr(fn, "broker", False):
+                    # strategy runs its own resting orders: execute its fills at their prices
+                    for ev in fn(md, memo, **kwargs):
+                        a, px = "BTC", ev["price"]
+                        if ev["side"] == "buy":
+                            eq = acct["cash"] + sum(q * (px if k == a else prices[k])
+                                                    for k, q in acct["holdings"].items())
+                            _fill(acct, a, "buy", eq * ev["frac"], px, ev["t"], ev["reason"])
+                        elif a in acct["holdings"]:
+                            q = acct["holdings"][a] * ev["frac"]
+                            _fill(acct, a, "sell", q * px * (1.0001 if ev["frac"] >= 1 else 1),
+                                  px, ev["t"], ev["reason"])
+                    target = {}
+                    acct["stops"] = {k: {"stop": v, "type": "CRT invalidation",
+                                         "dist": round(v / prices[k] - 1, 4)}
+                                     for k, v in memo.get("stops", {}).items()}
+                else:
+                    target = dict(fn(md, memo, **kwargs))
+                    for a, _ in hit:
+                        target.pop(a, None)
+                    target = risk.apply_cooldown(acct, target, now)
+                    rebalance(acct, target, prices, now)
+                    risk.update_stops(acct, sid, md, prices)
                 risk.evaluate_stop_events(acct, prices, now)
                 journal.record_decision(acct, needs or list(md), prices, now,
                                         len(acct["trades"]) > ntrades)
