@@ -7,15 +7,20 @@
 // Aggressive entry: at the open after the sweep candle closes.
 // Confirmed entry: wait (on the chart timeframe) for a displacement candle that closes beyond the
 // sweep candle's opposite extreme (MSS), then a limit at the FVG it leaves or at the CRT 50% level.
+// Defaults = the configuration that held up out-of-sample on NQ (30M, aggressive, stop beyond the
+// sweep, 2R). 15M and 1H did NOT validate; they are available for study, off by default.
+// Difference vs the Python backtest: here the sweep must be the candle right after the range candle
+// (classic 2-candle CRT); the backtest also allows it within 3 candles.
+// Statistics in the table are gross R (no commissions/slippage) on the loaded chart history.
 // Signals are evaluated only on CLOSED chart bars; CRT candles come from request.security with
 // [1] offsets + lookahead_on, the standard non-repainting pattern.
 indicator("CRT Pro (15M / 30M / 1H)", overlay = true, max_lines_count = 400, max_labels_count = 300)
 
 // ---------------- inputs ----------------
 grpTF  = "CRT timeframes"
-use15  = input.bool(true,  "15M CRT", group = grpTF, inline = "a")
+use15  = input.bool(false, "15M CRT", group = grpTF, inline = "a")
 use30  = input.bool(true,  "30M CRT", group = grpTF, inline = "a")
-use60  = input.bool(true,  "1H CRT",  group = grpTF, inline = "a")
+use60  = input.bool(false, "1H CRT",   group = grpTF, inline = "a")
 
 grpM     = "Model"
 entryMdl = input.string("Aggressive", "Entry model", options = ["Aggressive", "FVG", "Equilibrium"], group = grpM)
