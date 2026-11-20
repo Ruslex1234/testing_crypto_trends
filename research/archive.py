@@ -65,10 +65,12 @@ def path(symbol, day):
     return os.path.join(OUT, safe, day[:7], f"{day}.csv.gz")
 
 
-def write_days(symbol, rows, today):
+def write_days(symbol, rows, today, skip_first=False):
     by_day = {}
     for r in rows:
         by_day.setdefault(datetime.fromtimestamp(r[0], timezone.utc).strftime("%Y-%m-%d"), []).append(r)
+    if skip_first and by_day:
+        by_day.pop(min(by_day))  # oldest day of a rolling download window is usually cut off
     written = 0
     for day, rs in by_day.items():
         if day >= today:  # only complete UTC days
@@ -94,7 +96,7 @@ def main():
     report = {}
     for sym in MARKETS:
         try:
-            report[sym] = write_days(sym, yahoo_1m(sym), today)
+            report[sym] = write_days(sym, yahoo_1m(sym), today, skip_first=True)
         except Exception as e:  # noqa: BLE001
             report[sym] = f"error: {e}"[:120]
         time.sleep(0.5)
