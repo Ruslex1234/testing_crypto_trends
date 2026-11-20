@@ -10,8 +10,14 @@ import urllib.request
 
 import crt
 
-FWD_CFG = crt.Config(tf=30, entry="aggr", stop="sweep", target="2R",
-                     name="NQ 30M CRT, aggressive, stop beyond sweep, 2R")
+MODELS = [
+    # survived train, validation AND test with the largest sample (379 trades)
+    crt.Config(tf=30, entry="aggr", stop="sweep", target="2R",
+               name="30M aggressive, stop beyond sweep, 2R"),
+    # pick of the pre-registered max(min(train, val)) rule (46 trades)
+    crt.Config(tf=30, entry="eq", stop="ob", target="3R",
+               name="30M limit at 50%, stop beyond order block, 3R"),
+]
 RISK_PCT = 0.02
 
 
@@ -35,22 +41,26 @@ def _nq_5m():
 
 
 def update(state, now):
-    fw = state.setdefault("crt_forward", {"start": now, "trades": {}, "config": FWD_CFG.name})
+    fw = state.setdefault("crt_forward", {"start": now})
+    fw.pop("trades", None)  # older single-model layout
+    models = fw.setdefault("models", {})
     try:
         base = _nq_5m()
-        for t in crt.run(base, FWD_CFG, cost_mnq):
-            if t.entry_t >= fw["start"]:
-                fw["trades"][str(t.entry_t)] = {
-                    "entry_t": t.entry_t, "exit_t": t.exit_t, "side": t.side, "entry": t.entry,
-                    "stop": round(t.stop, 2), "target": round(t.target, 2), "exit": t.exit,
-                    "r": round(t.r_net, 3), "risk_pts": round(t.risk_pts, 2),
-                    "session": t.session, "reason": t.reason}
-        tr = sorted(fw["trades"].values(), key=lambda x: x["entry_t"])
-        eq = 100.0
-        for x in tr:
-            eq *= 1 + RISK_PCT * x["r"]
-        fw.update(n=len(tr), net_r=round(sum(x["r"] for x in tr), 3),
-                  wins=sum(1 for x in tr if x["r"] > 0), equity=round(eq, 2),
-                  last_price=base[-1]["c"], last_t=base[-1]["t"], error=None)
+        fw.update(last_price=base[-1]["c"], last_t=base[-1]["t"], error=None)
+        for cfg in MODELS:
+            m = models.setdefault(cfg.name, {"trades": {}})
+            for t in crt.run(base, cfg, cost_mnq):
+                if t.entry_t >= fw["start"]:
+                    m["trades"][str(t.entry_t)] = {
+                        "entry_t": t.entry_t, "exit_t": t.exit_t, "side": t.side,
+                        "entry": t.entry, "stop": round(t.stop, 2), "target": round(t.target, 2),
+                        "exit": t.exit, "r": round(t.r_net, 3), "risk_pts": round(t.risk_pts, 2),
+                        "session": t.session, "reason": t.reason}
+            tr = sorted(m["trades"].values(), key=lambda x: x["entry_t"])
+            eq = 100.0
+            for x in tr:
+                eq *= 1 + RISK_PCT * x["r"]
+            m.update(n=len(tr), net_r=round(sum(x["r"] for x in tr), 3),
+                     wins=sum(1 for x in tr if x["r"] > 0), equity=round(eq, 2))
     except Exception as e:  # noqa: BLE001  (never break the trading run)
         fw["error"] = f"{type(e).__name__}: {e}"

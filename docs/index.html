@@ -192,16 +192,14 @@ function render(s){
 
   // CRT forward test
   const fw=s.crt_forward;
-  if(fw){
-    const tr=Object.values(fw.trades||{}).sort((a,b)=>b.entry_t-a.entry_t);
-    $("#crtfwd").innerHTML=`<div class="kpis" style="margin-bottom:10px">
-      <div class="kpi"><div class="l">Model</div><div class="v" style="font-size:15px">${fw.config}</div></div>
-      <div class="kpi"><div class="l">Forward trades</div><div class="v">${fw.n||0}${fw.n?` <span class="thesis">${fw.wins} won</span>`:""}</div></div>
-      <div class="kpi"><div class="l">Net R</div><div class="v ${(fw.net_r||0)>=0?"up":"down"}">${(fw.net_r||0)>=0?"+":""}${(fw.net_r||0).toFixed(2)}R</div></div>
-      <div class="kpi"><div class="l">$100 @ 2% risk</div><div class="v">${usd(fw.equity||100)}</div></div></div>
+  if(fw&&fw.models){
+    const fr=x=>`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${x.toFixed(2)}R</span>`;
+    const all=Object.entries(fw.models).flatMap(([name,m])=>Object.values(m.trades||{}).map(x=>({...x,model:name}))).sort((a,b)=>b.entry_t-a.entry_t);
+    $("#crtfwd").innerHTML=`<div class="tbl"><table><thead><tr><th>#</th><th>Model (NQ, MNQ costs)</th><th>Trades</th><th>Won</th><th>Net R</th><th>$100 @ 2% risk</th></tr></thead><tbody>${
+      Object.entries(fw.models).map(([name,m],i)=>`<tr><td>${i+1}</td><td>${name}</td><td>${m.n||0}</td><td>${m.wins||0}</td><td>${fr(m.net_r||0)}</td><td>${usd(m.equity||100)}</td></tr>`).join("")}</tbody></table></div>
       ${fw.error?`<p class="err">Data issue last run: ${fw.error}</p>`:""}
-      <p class="foot">Tracking since ${fmtT(fw.start)}${fw.last_price?` · NQ last ${Math.round(fw.last_price).toLocaleString()}`:""}. ${tr.length?"":"No CRT setups have triggered yet; at roughly 1 to 2 a day during market hours, expect the first within a day or two (NQ is closed on weekends)."}</p>
-      ${tr.length?`<div class="tbl"><table><thead><tr><th>Entry</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${tr.slice(0,30).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${x.entry.toFixed(2)}</td><td>${x.stop.toFixed(2)}</td><td>${x.target.toFixed(2)}</td><td>${x.exit.toFixed(2)} <span class="thesis">${x.reason}</span></td><td class="${x.r>=0?"up":"down"}">${x.r>=0?"+":""}${x.r.toFixed(2)}R</td></tr>`).join("")}</tbody></table></div>`:""}`;
+      <p class="foot">Tracking since ${fmtT(fw.start)}${fw.last_price?` · NQ last ${Math.round(fw.last_price).toLocaleString()} at ${fmtT(fw.last_t)}`:""}. Backtest expectation: about +0.1R per trade. A month of forward trades is the real test.</p>
+      ${all.length?`<div class="tbl"><table><thead><tr><th>Entry</th><th>Model</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${all.slice(0,30).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td class="thesis">${x.model.split(",")[0]}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${x.entry.toFixed(2)}</td><td>${x.stop.toFixed(2)}</td><td>${x.target.toFixed(2)}</td><td>${x.exit.toFixed(2)} <span class="thesis">${x.reason}</span></td><td>${fr(x.r)}</td></tr>`).join("")}</tbody></table></div>`:'<p class="foot">No forward trades yet. NQ trades nearly 24h on weekdays and is closed on weekends.</p>'}`;
   }
 
   // Decision scorecard

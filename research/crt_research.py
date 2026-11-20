@@ -198,9 +198,28 @@ def study(name, base, cost, tfs=(15, 30, 60), longs=True, shorts=True):
         if ltf in tfs and chosen.get(ltf):
             c = cfg_from(chosen[ltf], bias_tf=htf, longs=longs, shorts=shorts)
             mtf[label] = {"config": key(c), **evaluate(base, c, cost, ctx, bounds)[0]}
+    # focus: like-for-like model on every timeframe, with sessions, regimes, filters and MTF
+    focus = {}
+    for tf in tfs:
+        for tgt in ("2R", "3R"):
+            k = f"{tf}m|aggr|sweep|{tgt}|-|bias0"
+            if k not in results:
+                continue
+            c = cfg_from(k, longs=longs, shorts=shorts)
+            _, trades = evaluate(base, c, cost, ctx, bounds)
+            row = {"base": results[k], "sessions": crt.stats(trades).get("sessions"), "filters": {}, "mtf": {}}
+            for f in FILTERS:
+                row["filters"][f] = evaluate(base, cfg_from(k, filters=(f,), longs=longs, shorts=shorts),
+                                             cost, ctx, bounds)[0]
+            for htf in (60, 30):
+                if htf > tf:
+                    row["mtf"][f"{htf}m bias"] = evaluate(
+                        base, cfg_from(k, bias_tf=htf, longs=longs, shorts=shorts), cost, ctx, bounds)[0]
+            focus[k] = row
     span = (base[0]["t"], base[-1]["t"])
     return {"name": name, "span": span, "bounds": bounds, "base_candles": len(base),
-            "grid": results, "chosen": chosen, "train_best": train_best, "robust": robust, "aggr_vs_conf": aggr_vs_conf,
+            "grid": results, "chosen": chosen, "train_best": train_best, "robust": robust,
+            "focus": focus, "aggr_vs_conf": aggr_vs_conf,
             "filters": filt, "mtf": mtf, "sessions": sessions}
 
 
@@ -279,6 +298,22 @@ def md_report(studies):
         for lab, r in st["mtf"].items():
             L.append(f"- {lab} `{r['config']}`: all {r['all'].get('n', 0)} / {fmt(r['all'].get('expectancy_r'))}, "
                      f"test {fmt(r['test'].get('expectancy_r'))} (n {r['test'].get('n', 0)})")
+        if st.get("focus"):
+            L += ["", "**Focus: aggressive entry, stop beyond sweep (like-for-like across timeframes)**", ""]
+            for k, row in st["focus"].items():
+                b = row["base"]
+                L.append(f"- `{k}` train {fmt(b['train'].get('expectancy_r'))} (n {b['train'].get('n', 0)}), "
+                         f"val {fmt(b['val'].get('expectancy_r'))} (n {b['val'].get('n', 0)}), "
+                         f"test {fmt(b['test'].get('expectancy_r'))} (n {b['test'].get('n', 0)})")
+                ss = row["sessions"] or {}
+                L.append("  - sessions: " + ", ".join(f"{n} {fmt(v['exp'])} (n {v['n']})" for n, v in sorted(ss.items())))
+                L.append("  - filters (all exp / test exp): " + ", ".join(
+                    f"{f} {fmt(v['all'].get('expectancy_r'))}/{fmt(v['test'].get('expectancy_r'))} (n {v['all'].get('n', 0)})"
+                    for f, v in row["filters"].items()))
+                if row["mtf"]:
+                    L.append("  - MTF: " + ", ".join(
+                        f"{m} {fmt(v['all'].get('expectancy_r'))}/{fmt(v['test'].get('expectancy_r'))} (n {v['all'].get('n', 0)})"
+                        for m, v in row["mtf"].items()))
         L.append("")
     return "\n".join(L)
 
@@ -288,7 +323,12 @@ def slim(st):
     g = {}
     for k, r in st["grid"].items():
         g[k] = {sp: {m: v for m, v in x.items() if m not in ("sessions",)} for sp, x in r.items()}
-    return {**st, "grid": g}
+    return {**st, "grid": g, "focus": {k: {**v, "filters": {f: {sp: {m: x for m, x in d.items() if m != "sessions"}
+                                                                  for sp, d in fv.items()} for f, fv in v["filters"].items()},
+                                             "mtf": {m: {sp: {a: x for a, x in d.items() if a != "sessions"} for sp, d in mv.items()}
+                                                     for m, mv in v["mtf"].items()},
+                                             "base": {sp: {m: x for m, x in d.items() if m != "sessions"} for sp, d in v["base"].items()}}
+                                         for k, v in st.get("focus", {}).items()}}
 
 
 def main():
