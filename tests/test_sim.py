@@ -6,6 +6,10 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bot"))
 import engine  # noqa: E402
+import strategies  # noqa: E402
+# AI accounts fetch live data and train models each run; they have dedicated tests
+strategies.STRATEGIES[:] = [x for x in strategies.STRATEGIES if x[0] not in ("ml_predictor", "quick_trader")]
+engine.STRATEGIES = strategies.STRATEGIES
 from market import ASSETS, resample  # noqa: E402
 
 random.seed(7)

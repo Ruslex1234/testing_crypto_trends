@@ -38,7 +38,9 @@ def new_account(sid, name, thesis):
 
 
 def equity(acct, prices):
-    return acct["cash"] + sum(q * prices[a] for a, q in acct["holdings"].items())
+    # "unrealized": open perp-style positions (long or short) tracked by a broker strategy
+    return (acct["cash"] + sum(q * prices[a] for a, q in acct["holdings"].items())
+            + acct.get("memo", {}).get("unrealized", 0.0))
 
 
 def _fill(acct, asset, side, usd, price, now, reason):
@@ -157,10 +159,21 @@ def step(state, md, now, errors=None, sources=None):
                         memo["tier"] = 0
                 kwargs = {"now": now} if "now" in inspect.signature(fn).parameters else {}
                 if getattr(fn, "broker", False):
+                    memo["equity_hint"] = equity(acct, prices)
                     # strategy runs its own resting orders: execute its fills at their prices
                     for ev in fn(md, memo, **kwargs):
                         a, px = ev.get("asset", "BTC"), ev["price"]
-                        if ev["side"] == "buy":
+                        if ev.get("type") in ("open", "close"):
+                            # perp-style position: no coins held, profit/loss settles in cash
+                            fee = ev.get("fee", 0.0)
+                            acct["cash"] += ev.get("pnl", 0.0) - fee
+                            acct["fees_paid"] += fee
+                            acct["trades"].append({"t": ev["t"], "side": ev["side"], "asset": a,
+                                                   "qty": round(ev["notional"] / px, 8),
+                                                   "price": round(px, 6), "usd": round(ev["notional"], 4),
+                                                   "fee": round(fee, 4), "reason": ev["reason"],
+                                                   **({"pnl": round(ev["pnl"], 4)} if "pnl" in ev else {})})
+                        elif ev["side"] == "buy":
                             eq = acct["cash"] + sum(q * (px if k == a else prices[k])
                                                     for k, q in acct["holdings"].items())
                             _fill(acct, a, "buy", eq * ev["frac"], px, ev["t"], ev["reason"])
@@ -169,7 +182,7 @@ def step(state, md, now, errors=None, sources=None):
                             _fill(acct, a, "sell", q * px * (1.0001 if ev["frac"] >= 1 else 1),
                                   px, ev["t"], ev["reason"])
                     target = {}
-                    acct["stops"] = {k: {"stop": v, "type": "CRT invalidation",
+                    acct["stops"] = {k: {"stop": v, "type": memo.get("stop_type", "strategy stop"),
                                          "dist": round(v / prices[k] - 1, 4)}
                                      for k, v in memo.get("stops", {}).items()}
                 else:

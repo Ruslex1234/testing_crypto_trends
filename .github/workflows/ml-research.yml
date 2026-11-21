@@ -23,11 +23,13 @@ jobs:
       - run: python3 -m pip install --quiet --disable-pip-version-check scikit-learn numpy
       - name: Walk-forward backtest
         run: python3 research/ml_research.py
+      - name: Quick 1h long/short walk-forward
+        run: python3 research/quick_research.py
       - name: Commit
         run: |
           git config user.name "paper-trader-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/ml docs/ml
+          git add data/ml docs/ml docs/quick
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "AI research $(date -u +'%Y-%m-%d %H:%M UTC')"
           for i in 1 2 3 4; do

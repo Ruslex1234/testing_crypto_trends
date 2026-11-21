@@ -57,7 +57,7 @@ summary{cursor:pointer;font-weight:500}
 <body>
 <div class="wrap">
   <h1>Strategy Arena</h1>
-  <p class="sub">Eleven strategies, $100 of paper money each, trading hourly against live prices with realistic fees and slippage.</p>
+  <p class="sub">Thirteen strategies, $100 of paper money each, trading hourly against live prices with realistic fees and slippage.</p>
 
   <div class="kpis" id="kpis"></div>
   <div class="card verdict" id="verdict"></div>
@@ -79,6 +79,11 @@ summary{cursor:pointer;font-weight:500}
     <h2>CRT forward test: 13 markets, 3 models</h2>
     <p class="foot" style="margin-top:-6px">The CRT models that survived out-of-sample backtesting on Nasdaq, now run every hour on live data from index futures, gold, oil, FX and crypto. Only trades entered after tracking started count. Results in R after each market's realistic costs, and as a $100 account risking 2% per trade. <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/REPORT.md">Research report</a> · <a href="https://github.com/Ruslex1234/testing_crypto_trends/blob/claude/keen-mccarthy-jhq2cn/docs/crt/crt_indicator.pine">TradingView indicator</a></p>
     <div id="crtfwd"></div>
+  </div>
+
+  <div class="card">
+    <h2>Quick trades: long or short, next hour</h2>
+    <div id="qpanel"><p class="foot">Appears after the first hourly run.</p></div>
   </div>
 
   <div class="card">
@@ -112,7 +117,7 @@ summary{cursor:pointer;font-weight:500}
   <p class="foot" id="foot"></p>
 </div>
 <script>
-const COLORS=["#8a909c","#3a5bd9","#e0861a","#13a37a","#c4362f","#8f4fd1","#d64f9c","#2a9fc4","#7a8b1f","#b5651d","#4a6b8a"];
+const COLORS=["#8a909c","#3a5bd9","#e0861a","#13a37a","#c4362f","#8f4fd1","#d64f9c","#2a9fc4","#7a8b1f","#b5651d","#4a6b8a","#9c27b0","#00897b"];
 const $=s=>document.querySelector(s);
 const pct=x=>(x>=0?"+":"")+(x*100).toFixed(2)+"%";
 const usd=x=>"$"+x.toFixed(2);
@@ -215,6 +220,34 @@ function render(s){
       Object.entries(fw.by_market).map(([sym,v])=>`<tr><td style="text-align:left">${v.label}${(fw.errors||{})[sym]?' <span class="err">data error</span>':""}</td>${order.map(m=>{const x=v.models[m]||{};return `<td>${x.n?`${fr(x.net_r)} <span class="thesis">${x.n}</span>`:'<span class="thesis">0</span>'}</td>`}).join("")}<td>${v.n?fr(v.net_r):"—"}</td><td>${fw.last&&fw.last[sym]?dp(fw.last[sym].price,fw.last[sym].price):"—"}</td></tr>`).join("")}</tbody></table></div>
       <p class="foot">Forward test since ${fmtT(fw.start)} (markets and models added later count from when they were added) · updated ${fmtT(fw.updated)}${nerr?` · ${nerr} market(s) had a data error this run`:""}. Futures and FX close on weekends; crypto trades 24/7.</p>
       ${trades.length?`<h3 style="font-size:14px;margin:14px 0 8px">Latest forward trades</h3><div class="tbl"><table><thead><tr><th>Entry</th><th>Market</th><th>Model</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${trades.slice(0,40).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td>${(fw.by_market[x.market]||{}).label||x.market}</td><td class="thesis">${short(x.model)}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${dp(x.entry,x.entry)}</td><td>${dp(x.stop,x.entry)}</td><td>${dp(x.target,x.entry)}</td><td>${dp(x.exit,x.entry)} <span class="thesis">${x.reason}</span></td><td>${fr(x.r)}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+  }
+
+  // Quick 1h long/short
+  const qt=s.accounts.quick_trader;
+  if(qt&&qt.memo){
+    const M=qt.memo, L=Object.values(M.latest||{}).sort((a,b)=>b.ev-a.ev), pos=M.pos||{};
+    const fe=x=>`<span class="${x>=0?"up":"down"}">${x>=0?"+":""}${x.toFixed(2)}R</span>`;
+    const pct=x=>(x*100).toFixed(0)+"%";
+    const sc=M.score||{}; const B=Object.entries(sc.buckets||{});
+    const closed=(M.closed||[]).slice().reverse();
+    const wins=closed.filter(x=>x.r>0).length, totR=closed.reduce((a,x)=>a+x.r,0);
+    const mg=M.model?M.model.margin:null;
+    $("#qpanel").innerHTML=`
+      <p class="foot" style="margin-top:-6px">Every hour, two AI models (trained on ${M.model&&M.model.window==="last_14_days"?"the last 14 days":"recent history"} of 15 minute candles, with Candle Range Theory features) estimate for each coin the chance a LONG or a SHORT hits its take-profit (1.5× the stop) before its stop-loss within the hour. It takes the better side only when expected value beats fees${mg===null||mg===undefined?" — <b>currently NOT trading: the walk-forward test found no edge after costs</b>":` by +${mg}R`}. Open trades are re-checked minute by minute at every run. Fees modelled as perpetual futures (0.12% round trip), max 3 trades, 1% risk each, no leverage.</p>
+      ${Object.keys(pos).length?`<h3 style="font-size:14px;margin:10px 0 8px">Open positions</h3><div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Coin</th><th>Side</th><th>Entry</th><th>Now</th><th>Stop-loss</th><th>Take-profit</th><th>Closes at</th></tr></thead><tbody>${Object.entries(pos).map(([c,p])=>`<tr><td style="text-align:left"><b>${c}</b></td><td class="${p.side>0?"up":"down"}">${p.side>0?"LONG":"SHORT"}</td><td>${fmtP(p.entry)}</td><td>${fmtP(s.prices[c])}</td><td>${fmtP(p.sl)}</td><td>${fmtP(p.tp)}</td><td>${fmtT(p.expire).slice(11)}</td></tr>`).join("")}</tbody></table></div>`:""}
+      <h3 style="font-size:14px;margin:12px 0 8px">Next hour: long vs short odds</h3>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Coin</th><th>Price</th><th>LONG: TP / SL odds</th><th>LONG EV</th><th>SHORT: TP / SL odds</th><th>SHORT EV</th><th>Call</th></tr></thead><tbody>${
+        L.map(v=>{const go=mg!==null&&mg!==undefined&&v.ev>mg&&!pos[v.coin];return `<tr><td style="text-align:left"><b>${v.coin}</b></td><td>${fmtP(v.price)}</td><td>${pct(v.long.tp)} / ${pct(v.long.sl)}</td><td>${fe(v.long.ev)}</td><td>${pct(v.short.tp)} / ${pct(v.short.sl)}</td><td>${fe(v.short.ev)}</td><td>${pos[v.coin]?'<span class="chip">OPEN</span>':go?`<span class="chip" style="color:${v.side>0?"var(--up)":"var(--down)"}">${v.side>0?"LONG":"SHORT"}</span>`:`<span class="chip">lean ${v.side>0?"long":"short"}</span>`}</td></tr>`}).join("")}</tbody></table></div>
+      <h3 style="font-size:14px;margin:12px 0 8px">How good are the calls? (scored one hour later)</h3>
+      ${sc.n?`<p class="foot">${sc.n} hourly calls scored · right direction ${(sc.dir_right/sc.n*100).toFixed(0)}% · average result of the favoured side after fees ${(sc.sum_r_best/sc.n).toFixed(2)}R</p>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Predicted EV</th><th>Calls</th><th>Avg predicted</th><th>Avg actual (after fees)</th></tr></thead><tbody>${B.map(([k,b])=>`<tr><td style="text-align:left">${k}</td><td>${b.n}</td><td>${fe(b.sum_ev/b.n)}</td><td>${fe(b.sum_r/b.n)}</td></tr>`).join("")}</tbody></table></div>`:'<p class="foot">First calls get scored one hour after they are made.</p>'}
+      ${closed.length?`<h3 style="font-size:14px;margin:12px 0 8px">Closed quick trades: ${closed.length}, ${wins} won, total ${totR>=0?"+":""}${totR.toFixed(2)}R</h3><div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Coin</th><th>Side</th><th>Opened</th><th>Entry</th><th>Exit</th><th>How</th><th>Result</th><th>$</th></tr></thead><tbody>${closed.slice(0,25).map(x=>`<tr><td style="text-align:left">${x.coin}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${fmtT(x.t).slice(5)}</td><td>${fmtP(x.entry)}</td><td>${fmtP(x.exit)}</td><td>${x.why}</td><td>${fe(x.r)}</td><td class="${x.pnl>=0?"up":"down"}">${x.pnl>=0?"+":""}${x.pnl.toFixed(2)}</td></tr>`).join("")}</tbody></table></div>`:""}
+      <div id="qbt"></div>`;
+    fetch("quick/results.json?ts="+Date.now()).then(r=>r.ok?r.json():null).then(b=>{ if(!b) return;
+      const row=(n,x)=>x&&x.n?`<tr><td style="text-align:left">${n}</td><td>${x.n} <span class="thesis">${x.per_day.toFixed(1)}/day</span></td><td>${(x.win_rate*100).toFixed(0)}%</td><td>${fe(x.exp_r)}</td><td>${x.longs}L / ${x.shorts}S</td><td>${x.max_dd_r.toFixed(1)}R</td></tr>`:`<tr><td style="text-align:left">${n}</td><td colspan="5">no trades (no edge found)</td></tr>`;
+      $("#qbt").innerHTML=`<h3 style="font-size:14px;margin:12px 0 8px">Walk-forward test, last ${Math.round((b.span[1]-b.span[0])/86400)} days (retrained daily, fees included)</h3>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Training window</th><th>Trades</th><th>Win rate</th><th>Avg per trade</th><th>Long/Short</th><th>Max DD</th></tr></thead><tbody>
+      ${row("Last 14 days (cost filter)",b.last_14_days.strategy)}${row("All history (cost filter)",b.all_history.strategy)}${row("No filter: top 3 every hour",b.all_history.no_filter_top3_every_hour)}</tbody></table></div>`;});
   }
 
   // AI predictor
