@@ -328,6 +328,33 @@ def trw_box(md, memo):
     return w
 
 
+def basket_trend(md, memo):
+    """Time-series momentum across the 8-coin basket: each coin gets 1/8 of the account while its
+    daily close is above its 50 day average, else that slice sits in cash."""
+    w, ins = {}, []
+    for a, d in md.items():
+        c = closes(done(d["1d"]))
+        if len(c) >= 51 and c[-1] > sma(c, 50):
+            w[a] = 1 / 8
+            ins.append(a)
+    memo["why"] = f"In {len(ins)}/8 coins above their 50d average: {', '.join(ins) or 'none'}"
+    return w
+
+
+def btc_sma200(md, memo):
+    """Classic long-term filter: hold BTC while the daily close is above its 200 day average."""
+    c = closes(done(md["BTC"]["1d"]))
+    m = sma(c, 200) if len(c) >= 200 else None
+    memo["why"] = (f"BTC ${c[-1]:,.0f} vs 200d avg ${m:,.0f}" if m else "warming up")
+    return {"BTC": 1.0} if m and c[-1] > m else {}
+
+
+def btc_eth_5050(md, memo):
+    """Half BTC, half ETH, rebalanced when either drifts more than 10% of the account."""
+    memo["why"] = "50% BTC / 50% ETH"
+    return {"BTC": 0.5, "ETH": 0.5}
+
+
 def vol_target(md, memo):  # noqa: C901
     """Volatility-targeted trend on BTC + ETH. Each coin gets up to half the account,
     only if its 30-day return is positive, scaled by 50% / realised 20-day annual vol."""
