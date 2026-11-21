@@ -346,6 +346,7 @@ def vol_target(md, memo):  # noqa: C901
 
 
 from crt_live import crt_btc, LIVE_CFG  # noqa: E402
+from ml_live import ml_predictor  # noqa: E402
 
 STRATEGIES = [
     # id, name, function, short thesis, assets used
@@ -371,4 +372,7 @@ STRATEGIES = [
      "Profits from chop: buys every dip level, sells every rip level.", ["ETH"]),
     ("crt_btc", "CRT (Candle Range Theory) on BTC", crt_btc,
      "Sweep of a candle's range, rejection, then trade back through it. Resting orders.", ["BTC"]),
+    ("ml_predictor", "AI predictor (8 coins, hourly)", ml_predictor,
+     "ML model predicts win/loss odds every hour; trades only when the edge beats fees. TP/SL on every trade.",
+     None),
 ]

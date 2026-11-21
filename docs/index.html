@@ -82,6 +82,11 @@ summary{cursor:pointer;font-weight:500}
   </div>
 
   <div class="card">
+    <h2>AI predictor: live predictions every hour</h2>
+    <div id="aipanel"><p class="foot">The AI account appears after its first hourly run.</p></div>
+  </div>
+
+  <div class="card">
     <h2>Hourly decision scorecard</h2>
     <p class="foot" style="margin-top:-6px">Every run, each strategy decides to be in, be out, or change nothing. The next runs score that decision with prices it couldn't see. <b>Follow</b> = what obeying the strategy earned; <b>Opposite</b> = what doing the reverse earned (out when it was in, in when it was out).</p>
     <div class="tbl"><table id="dec"><thead><tr><th>#</th><th>Strategy</th><th>Hours</th><th>Moves</th><th>Right after 1h</th><th>Right after 24h</th><th>Follow (sum of 1h)</th><th>Opposite</th><th>Edge</th></tr></thead><tbody></tbody></table></div>
@@ -210,6 +215,34 @@ function render(s){
       Object.entries(fw.by_market).map(([sym,v])=>`<tr><td style="text-align:left">${v.label}${(fw.errors||{})[sym]?' <span class="err">data error</span>':""}</td>${order.map(m=>{const x=v.models[m]||{};return `<td>${x.n?`${fr(x.net_r)} <span class="thesis">${x.n}</span>`:'<span class="thesis">0</span>'}</td>`}).join("")}<td>${v.n?fr(v.net_r):"—"}</td><td>${fw.last&&fw.last[sym]?dp(fw.last[sym].price,fw.last[sym].price):"—"}</td></tr>`).join("")}</tbody></table></div>
       <p class="foot">Forward test since ${fmtT(fw.start)} (markets and models added later count from when they were added) · updated ${fmtT(fw.updated)}${nerr?` · ${nerr} market(s) had a data error this run`:""}. Futures and FX close on weekends; crypto trades 24/7.</p>
       ${trades.length?`<h3 style="font-size:14px;margin:14px 0 8px">Latest forward trades</h3><div class="tbl"><table><thead><tr><th>Entry</th><th>Market</th><th>Model</th><th>Side</th><th>Session</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Result</th></tr></thead><tbody>${trades.slice(0,40).map(x=>`<tr><td>${fmtT(x.entry_t).slice(5)}</td><td>${(fw.by_market[x.market]||{}).label||x.market}</td><td class="thesis">${short(x.model)}</td><td class="${x.side>0?"up":"down"}">${x.side>0?"LONG":"SHORT"}</td><td>${x.session}</td><td>${dp(x.entry,x.entry)}</td><td>${dp(x.stop,x.entry)}</td><td>${dp(x.target,x.entry)}</td><td>${dp(x.exit,x.entry)} <span class="thesis">${x.reason}</span></td><td>${fr(x.r)}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+  }
+
+  // AI predictor
+  const ai=s.accounts.ml_predictor;
+  if(ai&&ai.memo){
+    const M=ai.memo, L=Object.values(M.latest||{}), pos=M.pos||{};
+    const fp=x=>(x*100).toFixed(0)+"%";
+    const bar=(p,need)=>`<div style="position:relative;height:8px;background:var(--chip);border-radius:4px;min-width:90px"><div style="width:${Math.min(100,p*100)}%;height:8px;border-radius:4px;background:${p>=need?"var(--up)":"var(--accent)"}"></div><div title="needed" style="position:absolute;left:${Math.min(100,need*100)}%;top:-3px;width:2px;height:14px;background:var(--down)"></div></div>`;
+    const cal=Object.entries(M.calib||{}).sort();
+    const tn=cal.reduce((a,[,v])=>a+v.n,0), tw=cal.reduce((a,[,v])=>a+v.wins,0), tp=cal.reduce((a,[,v])=>a+v.sum_p,0);
+    const closed=(M.closed||[]).slice().reverse();
+    $("#aipanel").innerHTML=`
+      <p class="foot" style="margin-top:-6px">Every hour a gradient-boosted model reads ~20 chart features for each coin and predicts the chance a long trade hits its take-profit (+2R) before its stop-loss (−1R) within 24h. It only trades when that chance clears the break-even line (red tick) by the safety margin, after fees. ${M.model?`Trained on ${M.model.trained_on.toLocaleString()} past setups at ${fmtT(M.model.trained_at)}; margin ${M.model.margin===null||M.model.margin===undefined?"<b>none yet (not trading)</b>":"+"+M.model.margin+"R"}.`:""}</p>
+      <h3 style="font-size:14px;margin:10px 0 8px">This hour's predictions</h3>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Coin</th><th>Price</th><th style="text-align:left">Chance of win vs needed</th><th>P(win)</th><th>Needed</th><th>Expected value</th><th>Decision</th><th>Take-profit / Stop</th></tr></thead><tbody>${
+        L.sort((a,b)=>b.ev-a.ev).map(v=>{const held=pos[v.coin];const go=!held&&M.model&&M.model.margin!==null&&M.model.margin!==undefined&&v.ev>M.model.margin;
+        return `<tr><td style="text-align:left"><b>${v.coin}</b></td><td>${fmtP(v.price)}</td><td style="text-align:left">${bar(v.p,v.need)}</td><td>${fp(v.p)}</td><td>${fp(v.need)}</td><td class="${v.ev>=0?"up":"down"}">${v.ev>=0?"+":""}${v.ev.toFixed(2)}R</td><td>${held?'<span class="chip">HOLDING</span>':go?'<span class="chip" style="color:var(--up)">BUY</span>':'<span class="chip">skip</span>'}</td><td>${held?`${fmtP(held.tp)} / ${fmtP(held.sl)}`:`${fmtP(v.tp)} / ${fmtP(v.sl)}`}</td></tr>`}).join("")}</tbody></table></div>
+      <h3 style="font-size:14px;margin:14px 0 8px">Is the AI actually right? (live, scored 24h later)</h3>
+      ${tn?`<p class="foot">${tn} predictions scored: it expected ${(tp/tn*100).toFixed(1)}% to win, ${(tw/tn*100).toFixed(1)}% actually won.</p>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Predicted range</th><th>Predictions</th><th>Avg predicted</th><th>Actually won</th><th>Avg result after fees</th></tr></thead><tbody>${cal.map(([b,v])=>`<tr><td style="text-align:left">${(+b*100).toFixed(0)}–${(+b*100+10).toFixed(0)}%</td><td>${v.n}</td><td>${(v.sum_p/v.n*100).toFixed(1)}%</td><td>${(v.wins/v.n*100).toFixed(1)}%</td><td class="${v.sum_r>=0?"up":"down"}">${(v.sum_r/v.n).toFixed(2)}R</td></tr>`).join("")}</tbody></table></div>`:'<p class="foot">First predictions get scored 24 hours after they are made.</p>'}
+      <div id="aibt"></div>
+      ${closed.length?`<h3 style="font-size:14px;margin:14px 0 8px">Closed AI trades</h3><div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Coin</th><th>Opened</th><th>P(win)</th><th>Entry</th><th>Exit</th><th>Result</th></tr></thead><tbody>${closed.slice(0,20).map(x=>`<tr><td style="text-align:left">${x.coin}</td><td>${fmtT(x.t).slice(5)}</td><td>${fp(x.p)}</td><td>${fmtP(x.entry)}</td><td>${fmtP(x.exit)}</td><td class="${x.closed==="win"?"up":"down"}">${x.closed}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+    fetch("ml/results.json?ts="+Date.now()).then(r=>r.ok?r.json():null).then(b=>{ if(!b) return;
+      const row=(n,x)=>x&&x.n?`<tr><td style="text-align:left">${n}</td><td>${x.n}</td><td>${(x.win_rate*100).toFixed(0)}%</td><td class="${x.exp_r>=0?"up":"down"}">${x.exp_r>=0?"+":""}${x.exp_r.toFixed(3)}R</td><td>${x.max_dd_r.toFixed(1)}R</td><td>${usd(x.account_100_at_2pct)}</td></tr>`:`<tr><td style="text-align:left">${n}</td><td>0</td><td colspan="4">no trades</td></tr>`;
+      $("#aibt").innerHTML=`<h3 style="font-size:14px;margin:14px 0 8px">Walk-forward backtest (${new Date(b.span[0]*1000).toISOString().slice(0,10)} → ${new Date(b.span[1]*1000).toISOString().slice(0,10)}, retrained monthly, fees included)</h3>
+      <p class="foot">Model skill: AUC ${b.auc.toFixed(3)} (0.5 = coin flip).</p>
+      <div class="tbl"><table class="mk"><thead><tr><th style="text-align:left">Approach</th><th>Trades</th><th>Win rate</th><th>Avg per trade</th><th>Max drawdown</th><th>$100 @ 2% risk</th></tr></thead><tbody>
+      ${row("<b>Cost-aware AI (live rules)</b>",b.strategy)}${row("AI, trade whenever P(win) > 50%",b.naive_p_over_50)}${row("No AI, trade every hour",b.every_hour)}</tbody></table></div>`;});
   }
 
   // Decision scorecard

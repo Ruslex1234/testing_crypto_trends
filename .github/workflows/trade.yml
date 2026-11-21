@@ -22,7 +22,12 @@ jobs:
     timeout-minutes: 80
     steps:
       - uses: actions/checkout@v5
+      - name: Install ML library
+        continue-on-error: true
+        run: python3 -m pip install --quiet --disable-pip-version-check scikit-learn numpy
       - name: Run strategies
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python3 bot/engine.py
       - name: Commit updated balances
         run: |

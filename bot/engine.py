@@ -159,7 +159,7 @@ def step(state, md, now, errors=None, sources=None):
                 if getattr(fn, "broker", False):
                     # strategy runs its own resting orders: execute its fills at their prices
                     for ev in fn(md, memo, **kwargs):
-                        a, px = "BTC", ev["price"]
+                        a, px = ev.get("asset", "BTC"), ev["price"]
                         if ev["side"] == "buy":
                             eq = acct["cash"] + sum(q * (px if k == a else prices[k])
                                                     for k, q in acct["holdings"].items())
@@ -202,10 +202,17 @@ def main():
     if "BTC" not in md:
         print("No BTC data, aborting without changes:", errors)
         sys.exit(1)
-    state = step(load_state(), md, int(time.time()), errors, sources)
+    st0 = load_state()
+    prev_run = st0.get("last_run") or 0
+    state = step(st0, md, int(time.time()), errors, sources)
     import crt_forward
     crt_forward.update(state, int(time.time()))
     save_state(state)
+    try:
+        import notify
+        notify.send_new_trades(state, prev_run)
+    except Exception as e:  # noqa: BLE001  (alerts must never break trading)
+        print("notify failed:", e)
     for a in state["accounts"].values():
         print(f"{a['name']:<42} ${a.get('equity', 0):8.2f}  trades={len(a['trades'])}"
               f"{'  ERR ' + a['error'] if a['error'] else ''}")
