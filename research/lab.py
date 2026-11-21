@@ -85,9 +85,11 @@ def run_one(sid):
     import strategies
     allfn = {s[0]: s for s in strategies.STRATEGIES}
     extra = {  # retired on day 1 for redundancy in that week's market: judged fairly here
-        "trend_sma50": ("trend_sma50", "Trend: BTC above 50 day SMA", strategies.trend_sma50, "", ["BTC"]),
-        "donchian": ("donchian", "Turtle breakout 20/10 (BTC+ETH)", strategies.donchian_turtle, "", ["BTC", "ETH"]),
-        "vol_target": ("vol_target", "Volatility targeted trend (BTC+ETH)", strategies.vol_target, "", ["BTC", "ETH"]),
+        # retired from the live arena after the 8 year lab (near total losses), still judged here
+        "ema_cross_6h": ("ema_cross_6h", "EMA 9/21 crossover (ETH 6h)", strategies.ema_cross_6h, "", ["ETH"]),
+        "rsi_reversion": ("rsi_reversion", "RSI dip buyer (BTC 1h)", strategies.rsi_reversion, "", ["BTC"]),
+        "bollinger": ("bollinger", "Bollinger band reversion (SOL 1h)", strategies.bollinger_reversion, "", ["SOL"]),
+        "grid_eth": ("grid_eth", "Grid trader (ETH \u00b110%)", strategies.grid_eth, "", ["ETH"]),
         "basket_trend": ("basket_trend", "Basket trend: 8 coins above 50d SMA", strategies.basket_trend, "", None),
         "btc_sma200": ("btc_sma200", "BTC above 200 day SMA", strategies.btc_sma200, "", ["BTC"]),
         "btc_eth_5050": ("btc_eth_5050", "BTC/ETH 50/50 rebalanced", strategies.btc_eth_5050, "", ["BTC", "ETH"]),
@@ -167,7 +169,7 @@ def metrics(curve, btc_by_t, btc_trend):
 def main(ids=None):
     import strategies
     ids = ids or [s[0] for s in strategies.STRATEGIES if s[0] not in ("ml_predictor", "quick_trader")] + \
-        ["trend_sma50", "donchian", "vol_target", "basket_trend", "btc_sma200", "btc_eth_5050"]
+        ["ema_cross_6h", "rsi_reversion", "bollinger", "grid_eth", "basket_trend", "btc_sma200", "btc_eth_5050"]
     t0 = time.time()
     with mp.Pool(min(len(ids), os.cpu_count() or 2)) as pool:
         runs = pool.map(run_one, ids)

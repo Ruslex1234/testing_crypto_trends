@@ -30,7 +30,7 @@ jobs:
           if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
           git commit -m "candle archive $(date -u +'%Y-%m-%d')"
           for i in 1 2 3 4; do
-            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
             sleep $((i * 5))
           done
           exit 1

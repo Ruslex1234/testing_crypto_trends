@@ -27,7 +27,7 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "CRT research results $(date -u +'%Y-%m-%d %H:%M UTC')"
           for i in 1 2 3 4; do
-            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
             sleep $((i * 5))
           done
           exit 1
