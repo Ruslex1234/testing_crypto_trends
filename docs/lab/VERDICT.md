@@ -54,3 +54,12 @@ Expect a 45% drawdown at some point: $10,000 can become $5,500 before it recover
 2. Start real money with the amount you can watch fall by half without selling.
 3. Spot only, no leverage. Exchange with low fees (maker fees under 0.2%) since every rebalance pays them.
 4. Kill switch: if live results trail the lab by more than 15 points over 90 days, stop and reassess.
+
+## Hourly for/against betting (Hour Lab, Nov 2026)
+
+Tested on 138,552 coin-hours (8 coins, Dec 2024 to Nov 2026) with Binance taker flow, open interest,
+top trader and crowd long/short ratios, funding and S&P futures, plus 13 simple rules and a walk forward
+gradient boosting model. Result: **no edge**. The best signal correlates under 1.3% with the next hour.
+Every setting loses after 0.08% fees on unseen data; the most active one loses about $19/day on $1,000.
+Hourly betting stays off. Full report: [docs/hourlab/REPORT.md](../hourlab/REPORT.md). It reruns daily
+and will flip `docs/hourlab/live_config.json` to enabled only if an edge appears on unseen data.
