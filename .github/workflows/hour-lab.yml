@@ -1,0 +1,52 @@
+name: hour-lab
+
+# Daily (and on demand): download Binance futures flow data (taker volume, open interest,
+# long/short ratios, funding), test betting for/against each coin over the next hour.
+on:
+  schedule:
+    - cron: "53 2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hour-lab
+  cancel-in-progress: false
+
+jobs:
+  hourlab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 -m pip install --quiet --disable-pip-version-check scikit-learn numpy
+      - name: Which live data feeds can this runner reach?
+        run: |
+          mkdir -p docs/hourlab
+          {
+            for u in "https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT" \
+                     "https://www.okx.com/api/v5/public/open-interest?instId=BTC-USDT-SWAP" \
+                     "https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT" \
+                     "https://futures.kraken.com/derivatives/api/v3/tickers" \
+                     "https://api.coinbase.com/api/v3/brokerage/market/products?product_type=FUTURE&limit=1" \
+                     "https://data.binance.vision/data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-$(date -u -d yesterday +%F).zip"; do
+              echo "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$u") $u"
+            done
+            echo "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST -H 'Content-Type: application/json' \
+              -d '{"type":"metaAndAssetCtxs"}' https://api.hyperliquid.xyz/info) https://api.hyperliquid.xyz/info"
+          } | tee docs/hourlab/feeds.txt
+      - name: Hour lab
+        run: python3 research/hour_lab.py
+      - name: Commit
+        run: |
+          git config user.name "paper-trader-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/hourlab docs/hourlab
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Hour lab $(date -u +'%Y-%m-%d %H:%M UTC')"
+          for i in 1 2 3 4; do
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
