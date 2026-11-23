@@ -1,0 +1,7 @@
+451 https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT
+200 https://www.okx.com/api/v5/public/open-interest?instId=BTC-USDT-SWAP
+403 https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT
+200 https://futures.kraken.com/derivatives/api/v3/tickers
+200 https://api.coinbase.com/api/v3/brokerage/market/products?product_type=FUTURE&limit=1
+200 https://data.binance.vision/data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2026-11-22.zip
+200 https://api.hyperliquid.xyz/info
