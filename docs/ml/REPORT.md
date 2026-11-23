@@ -1,6 +1,6 @@
 # AI predictor: walk-forward results (auto-generated)
 
-2024-11-21 to 2026-11-22, 8 coins, hourly. Model retrained monthly on past data only; threshold chosen from earlier months only. Costs 0.9% round trip. Trade = TP 8xATR / SL 4xATR / 24h.
+2024-11-21 to 2026-11-23, 8 coins, hourly. Model retrained monthly on past data only; threshold chosen from earlier months only. Costs 0.9% round trip. Trade = TP 8xATR / SL 4xATR / 24h.
 
 **Model quality (out of sample):** AUC 0.642 (0.5 = coin flip), Brier 0.0563, base win rate 5.8%, typical win probability needed to beat fees 41%.
 
@@ -10,15 +10,15 @@
 | …first half of the period | 19 | 5% | +0.267R | +5.1R | 3.4R | $110.27 |
 | …second half of the period | 21 | 0% | -0.542R | -11.4R | 10.1R | $79.22 |
 | AI, trade whenever p > 50% | 65 | 12% | -0.382R | -24.9R | 29.0R | $59.81 |
-| No AI: take every hour | 1977 | 5% | -0.340R | -672.5R | 675.1R | $0.00 |
+| No AI: take every hour | 1980 | 5% | -0.339R | -670.7R | 675.1R | $0.00 |
 
 **Calibration (does a predicted 40% win rate really win 40%?):**
 
 | Predicted | Samples | Avg predicted | Actual win rate | Avg net R |
 |---|---|---|---|---|
-| 0.0-0.1 | 91148 | 3.4% | 4.8% | -0.292 |
-| 0.1-0.2 | 12756 | 13.7% | 9.1% | -0.333 |
-| 0.2-0.3 | 3284 | 24.1% | 11.8% | -0.374 |
+| 0.0-0.1 | 91337 | 3.4% | 4.8% | -0.291 |
+| 0.1-0.2 | 12766 | 13.7% | 9.1% | -0.332 |
+| 0.2-0.3 | 3285 | 24.1% | 11.8% | -0.373 |
 | 0.3-0.4 | 1168 | 34.2% | 19.0% | -0.230 |
 | 0.4-0.5 | 457 | 44.2% | 22.3% | -0.189 |
 | 0.5-0.6 | 221 | 55.0% | 21.7% | -0.490 |
