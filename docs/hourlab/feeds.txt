@@ -3,5 +3,5 @@
 403 https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT
 200 https://futures.kraken.com/derivatives/api/v3/tickers
 200 https://api.coinbase.com/api/v3/brokerage/market/products?product_type=FUTURE&limit=1
-200 https://data.binance.vision/data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2026-11-23.zip
+200 https://data.binance.vision/data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2026-11-24.zip
 200 https://api.hyperliquid.xyz/info
