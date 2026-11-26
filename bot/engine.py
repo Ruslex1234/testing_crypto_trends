@@ -37,6 +37,55 @@ def new_account(sid, name, thesis):
             "memo": {}, "trades": [], "history": [], "fees_paid": 0.0, "error": None}
 
 
+# Leveraged mirrors (perp style): each copies a base account's moves times L, pays funding on the
+# borrowed part while the base is invested, and is liquidated if one run's move wipes out 90%.
+# Leverage levels chosen by research/leverage_lab.py on 8 years of history (see docs/lab/leverage.json).
+LEVERED = [
+    ("lev_trend_2x", "Trend SMA50 at 2x leverage", "trend_sma50", 2,
+     "Best 8 year growth of any setting: $100 -> $8,900 (vs $2,500 at 1x). Worst drop about 85%."),
+    ("lev_vol_3x", "Vol target at 3x leverage", "vol_target", 3,
+     "8 years: $100 -> $4,600 (vs $1,400 at 1x). Volatility sizing keeps 3x survivable."),
+    ("lev_btc_10x", "LOTTERY: BTC at 10x leverage", "hodl_btc", 10,
+     "Demonstration only. Doubles in 11% of weeks, but every 10x account was liquidated within 8 years."),
+]
+FUNDING_YR = 0.11
+
+
+def step_levered(state, now):
+    for sid, name, base_id, lev, thesis in LEVERED:
+        base = state["accounts"].get(base_id)
+        if not base or "equity" not in base:
+            continue
+        acct = state["accounts"].get(sid) or new_account(sid, name, thesis)
+        acct["name"], acct["thesis"] = name, thesis
+        m = acct["memo"]
+        beq = base["equity"]
+        if "base_prev" in m and not m.get("liquidated") and m["base_prev"] > 0:
+            r = beq / m["base_prev"] - 1
+            hours = max(0.0, (now - m.get("t_prev", now)) / 3600)
+            fund = (lev - 1) * m.get("expo", 0.0) * FUNDING_YR * hours / 8760
+            mult = 1 + lev * r - fund
+            if mult <= 0.1:
+                m["liquidated"] = now
+                acct["trades"].append({"t": now, "side": "sell", "asset": "ALL", "qty": 0, "price": 0,
+                                       "usd": round(acct["cash"], 4), "fee": 0, "reason": f"LIQUIDATED at {lev}x",
+                                       "pnl": round(-acct["cash"], 4)})
+                acct["cash"] = 0.0
+            else:
+                acct["fees_paid"] += acct["cash"] * fund
+                acct["cash"] *= mult
+        m["base_prev"], m["t_prev"] = beq, now
+        m["expo"] = 1 - base["cash"] / beq if beq > 0 else 0.0
+        m["lev"], m["base"] = lev, base_id
+        acct["holdings"] = {}
+        acct["target"] = {k: round(v * lev, 3) for k, v in (base.get("target") or {}).items()}
+        acct["equity"] = round(acct["cash"], 4)
+        acct["history"].append([now, acct["equity"]])
+        acct["history"] = acct["history"][-MAX_HISTORY:]
+        acct["error"] = "liquidated" if m.get("liquidated") else None
+        state["accounts"][sid] = acct
+
+
 def equity(acct, prices):
     # "unrealized": open perp-style positions (long or short) tracked by a broker strategy
     return (acct["cash"] + sum(q * prices[a] for a, q in acct["holdings"].items())
@@ -127,7 +176,7 @@ def step(state, md, now, errors=None, sources=None):
     state["config"] = {"start_cash": START_CASH, "fee": FEE, "slippage_major": SLIP["BTC"],
                        "slippage_alt": SLIP_DEFAULT, "rebalance_band": REBAL_BAND,
                        "min_order": MIN_ORDER}
-    live = {sid for sid, *_ in STRATEGIES}
+    live = {sid for sid, *_ in STRATEGIES} | {m[0] for m in LEVERED}
     state["retired"] = state.get("retired", {})
     for sid in [k for k in state["accounts"] if k not in live]:
         state["retired"][sid] = state["accounts"].pop(sid)
@@ -204,6 +253,7 @@ def step(state, md, now, errors=None, sources=None):
             acct["equity"] = round(equity(acct, prices), 4)
             acct["history"].append([now, acct["equity"]])
             acct["history"] = acct["history"][-MAX_HISTORY:]
+    step_levered(state, now)
     state.setdefault("btc_history", []).append([now, prices.get("BTC")])
     state["btc_history"] = state["btc_history"][-MAX_HISTORY:]
     return state

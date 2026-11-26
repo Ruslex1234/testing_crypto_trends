@@ -63,3 +63,19 @@ gradient boosting model. Result: **no edge**. The best signal correlates under 1
 Every setting loses after 0.08% fees on unseen data; the most active one loses about $19/day on $1,000.
 Hourly betting stays off. Full report: [docs/hourlab/REPORT.md](../hourlab/REPORT.md). It reruns daily
 and will flip `docs/hourlab/live_config.json` to enabled only if an edge appears on unseen data.
+
+## Leverage: can $100 become $200 in a week? (Leverage Lab, 8 years of daily strategy returns)
+
+| Leverage | Weeks where any of 17 accounts doubled | Weeks where any fell to $20 or less | Accounts liquidated within 8 years |
+|---|---|---|---|
+| 1x | 0% (best week ever: +55%) | 0% | 0 |
+| 2x | 0.5% | 0.2% | 0 |
+| 3x | 1.2% | 0.2% | 4 |
+| 5x | 9.5% | 3.5% | 9 |
+| 10x | 21% | 26% | 17 of 17 |
+
+* Last week's winner ranks 0.46 the next week (0.50 = pure luck). The doubling account is a lottery winner, not a better strategy.
+* Moderate leverage on trend systems is the only thing that grew money faster over 8 years:
+  SMA50 trend $100 to $2,516 at 1x, **$8,922 at 2x**, $7,051 at 3x, $29 at 5x. Vol target $1,420 at 1x, **$4,594 at 3x**.
+* Caveat: daily data hides intraday wicks, so real liquidation risk is higher than shown.
+* Live arena now includes paper mirrors: Trend SMA50 2x, Vol target 3x, and a 10x BTC "lottery" for contrast.
